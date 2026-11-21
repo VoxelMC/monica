@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+
+/* Dark mode follows the system; a manual toggle can set data-theme later. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *), @media (prefers-color-scheme: dark) { &:not([data-theme='light'] *) });
+
+@theme {
+	--color-accent-50: #f0fdfa;
+	--color-accent-100: #ccfbf1;
+	--color-accent-500: #14b8a6;
+	--color-accent-600: #0d9488;
+	--color-accent-700: #0f766e;
+	--font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	--radius-card: 12px;
+	--radius-input: 8px;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+}
+body {
+	@apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+	min-height: 100dvh;
+}
+:focus-visible {
+	@apply outline-2 outline-offset-2 outline-accent-600;
+}

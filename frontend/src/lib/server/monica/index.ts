@@ -15,7 +15,7 @@ const transport = createTransport({
 	readOnly: ORBIT_READ_ONLY
 });
 
-export const monica: MonicaClient = createMonicaClient(transport);
+export const monica: MonicaClient = createMonicaClient(transport, { cacheTtlMs: 60_000 });
 
 export const settings = {
 	monicaUrl: MONICA_URL,
