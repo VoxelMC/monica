@@ -223,6 +223,7 @@ The app uses Monica 4's REST API at `/api`, authenticated with a personal access
 - Seen once on staging: the first `GET /api/contacts?with=contactfields` filled in the uuid of 3 contact fields created 17:35–17:38 that day and moved `updated_at` on them and on their 2 contacts. No content changed. Later reads changed nothing.
 - So orbit is not strictly zero-write: the first read of a record without a uuid writes the uuid and a new `updated_at`. Expect DAVx⁵ to re-sync such contacts once, and the conflict check to stop once if this happens between loading and saving (fails safe).
 - orbit cannot prevent this without changing Monica's PHP (out of scope). Take a fresh backup before orbit first reads production.
+- **Decision (owner, 2026-11-21): accepted.** No content changes; a fresh backup before the first production deploy covers it (DEPLOY.md step 1).
 
 ### Endpoints by feature
 
@@ -419,7 +420,7 @@ Ports already used in that namespace: 80 (Monica/Apache), 443 and 8080 (Caddy). 
     build: ../orbit/frontend          # ubc's deploy clone, not orbit-dev's
     network_mode: service:tailscale   # app has no hostname on the Docker network
     depends_on: [tailscale, app]
-    env_file: ./orbit.env             # MONICA_TOKEN (production), ORBIT_READ_ONLY=true
+    env_file: ./orbit.env             # MONICA_TOKEN (production), ORBIT_READ_ONLY=true, MONICA_PUBLIC_URL
     environment:
       HOST: 127.0.0.1
       PORT: "3000"

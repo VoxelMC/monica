@@ -1,5 +1,7 @@
 # orbit
 
+Deploying: see `DEPLOY.md`.
+
 A read-first front end for a self-hosted Monica 4.1.2. Rules: `CLAUDE.md`. Spec: `SPEC.md`.
 
 ## Develop
