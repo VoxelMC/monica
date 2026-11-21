@@ -6,7 +6,7 @@
 //    returns them as base64 `dataUrl`
 import type { ContactCard } from '../../contacts';
 import type { MonicaClient } from './client';
-import { contactListItem, photo, type ContactListItem } from './schemas';
+import { contactListItem, photo, tag, type ContactListItem } from './schemas';
 
 const latest = (...dates: (string | null | undefined)[]) =>
 	dates.filter((d): d is string => !!d).sort().at(-1) ?? null;
@@ -55,4 +55,10 @@ export async function getAvatar(
 	const m = /^data:([\w/+.-]+);base64,(.*)$/s.exec(p.dataUrl);
 	if (!m || !m[1].startsWith('image/')) return null;
 	return { mime: m[1], bytes: Uint8Array.from(Buffer.from(m[2], 'base64')) };
+}
+
+/** All tag names in Monica, including tags no contact uses (GET /api/tags). */
+export async function listTagNames(client: MonicaClient): Promise<string[]> {
+	const tags = await client.getAll('/api/tags', tag);
+	return tags.map((t) => t.name);
 }

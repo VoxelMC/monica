@@ -9,6 +9,7 @@
 	// Only live sections are links; the rest arrive in later slices.
 	const tabs = [
 		{ href: '/contacts', label: 'People', icon: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6m13 9v-1a4 4 0 0 0-3-3.87M16 4.13a4 4 0 0 1 0 7.75' },
+		{ href: '/tags', label: 'Tags', icon: 'M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4zM7.5 7.5h.01' },
 		{ href: '/health', label: 'Health', icon: 'M22 12h-4l-3 9L9 3l-3 9H2' }
 	];
 	const active = (href: string) => page.url.pathname === href || page.url.pathname.startsWith(href + '/');

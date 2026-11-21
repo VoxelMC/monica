@@ -55,3 +55,29 @@ test('unknown contact shows a 404 page', async ({ page }) => {
 	expect(res?.status()).toBe(404);
 	await expect(page.getByText('Back to People')).toBeVisible();
 });
+
+test('tags page links to a filtered list', async ({ page }) => {
+	await page.goto('/tags');
+	const first = page.getByTestId('tag-list').getByRole('link').first();
+	await first.click();
+	await expect(page).toHaveURL(/\/contacts\?tag=/);
+	await expect(page.getByTestId('count')).toContainText('of');
+});
+
+test('select mode: select all shown, copy emails, cards do not navigate', async ({ page, context, browserName }) => {
+	if (browserName === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	await page.goto('/contacts');
+	await page.getByRole('button', { name: 'Select', exact: true }).click();
+	const bar = page.getByTestId('bulk-bar');
+	await expect(bar).toContainText('0 selected');
+	await page.getByTestId('contact-card').first().click();
+	await expect(page).toHaveURL(/\/contacts$/);
+	await expect(bar).toContainText('1 selected');
+	await page.getByRole('button', { name: /Select all \d+ shown/ }).click();
+	const total = await page.getByTestId('contact-card').count();
+	await expect(bar).toContainText(`${total} selected`);
+	await bar.getByRole('button', { name: 'Copy emails' }).click();
+	await expect(page.getByRole('status').or(page.getByRole('dialog'))).toBeVisible();
+	await page.getByRole('button', { name: 'Done' }).click();
+	await expect(bar).toBeHidden();
+});

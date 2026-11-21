@@ -25,6 +25,17 @@
 	</section>
 {/snippet}
 
+{#snippet fold(title: string, count: number, body: import('svelte').Snippet, open = false)}
+	<!-- Personal sections fold away; the count says what is inside without opening. -->
+	<details {open} class="group rounded-[var(--radius-card)] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+		<summary class="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-semibold tracking-wide text-slate-500 uppercase select-none dark:text-slate-400 [&::-webkit-details-marker]:hidden">
+			<span>{title}{#if count}<span class="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium normal-case text-slate-600 dark:bg-slate-800 dark:text-slate-300">{count}</span>{/if}</span>
+			<svg viewBox="0 0 24 24" class="size-4 transition-transform duration-150 group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+		</summary>
+		<div class="px-4 pb-4">{@render body()}</div>
+	</details>
+{/snippet}
+
 {#snippet fieldRow(label: string, value: string, href: string | null, external = false)}
 	<li>
 		{#if href}
@@ -154,7 +165,7 @@
 					</ul>
 				{:else}<p class="text-sm text-slate-500 dark:text-slate-400">No tasks.</p>{/if}
 			{/snippet}
-			{@render card('Tasks', taskBody)}
+			{@render fold('Tasks', c.tasks.filter((t) => !t.completed).length, taskBody, c.tasks.some((t) => !t.completed))}
 
 			{#snippet giftBody()}
 				{#if c.gifts.length}
@@ -171,7 +182,7 @@
 					</ul>
 				{:else}<p class="text-sm text-slate-500 dark:text-slate-400">No gifts or ideas yet.</p>{/if}
 			{/snippet}
-			{@render card('Gifts', giftBody)}
+			{@render fold('Gifts', c.gifts.length, giftBody)}
 
 			{#snippet reminderBody()}
 				{#if c.reminders.length}
@@ -182,7 +193,7 @@
 					</ul>
 				{:else}<p class="text-sm text-slate-500 dark:text-slate-400">No reminders.</p>{/if}
 			{/snippet}
-			{@render card('Reminders', reminderBody)}
+			{@render fold('Reminders', c.reminders.length, reminderBody)}
 
 			{#if c.howYouMet || c.foodPreferences}
 				{#snippet moreBody()}
@@ -191,7 +202,7 @@
 						{#if c.foodPreferences}<div><dt class="text-xs text-slate-500">Food preferences</dt><dd class="whitespace-pre-line">{c.foodPreferences}</dd></div>{/if}
 					</dl>
 				{/snippet}
-				{@render card('About', moreBody)}
+				{@render fold('About', 0, moreBody)}
 			{/if}
 		</aside>
 	</div>

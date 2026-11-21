@@ -287,6 +287,24 @@ Work ships in six slices: the first three only read data, and writing starts in 
 
 **Done when:** each write passes on staging; the audit log shows correct before and after JSON; a write made on the phone in between triggers the conflict check; DAVx⁵ shows the change on the phone.
 
+**Tags and batch editing (requested 2026-11-21; owner chose: read-only parts now, writes with this slice)**
+
+Read-only parts, already built: tag overview page with counts, tag chips (any/all, untagged), select mode with "select all shown", copy emails/phones, personal sections folded on the contact page.
+
+Writes, in this order, each with its own guard test and owner approval of real staging audit entries:
+
+| Action | Monica call (verified in v4.1.2 source) | Notes |
+| --- | --- | --- |
+| Add tag to many | `POST /api/contacts/{id}/setTags` `{"tags":["name"]}`, one per contact | Additive only; creates the tag if missing |
+| Log a catch-up with many | `POST /api/activities` with several `contacts` | One write for the whole group |
+| Rename a tag | `PUT /api/tags/{id}` `{"name":…}` | One write; contacts keep the tag |
+| Merge tag A into B | `setTags` B, then `unsetTag` A, per contact | Deleting the empty tag A stays in the old UI (no DELETE) |
+| Remove tag from many | `POST /api/contacts/{id}/unsetTag` `{"tags":[tag_id]}`, one per contact | Detaches only; the tag remains |
+
+Never allowlist `POST /api/contacts/{id}/unsetTags` (removes every tag) or `DELETE /api/tags/{id}`.
+
+Batch rules: show the exact list of contacts and the change before sending; one audit row per contact; stop at the first error and report which contacts were done; stay under Monica's rate limit (60/min) with a visible progress count; a batch never retries a write that may have reached Monica.
+
 ### Slice 5 — My own features (extension DB)
 
 - Target catch-up interval per contact (e.g. every 3 weeks)

@@ -87,3 +87,38 @@ describe('helpers', () => {
 		expect(relativeDate('2023-11-21', now)).toBe('3 years ago');
 	});
 });
+
+describe('tag filters', () => {
+	const f = (o: Partial<import('./contacts').TagFilter>) => ({ tags: [], mode: 'any' as const, untagged: false, ...o });
+	const none = card({ id: 4, name: 'No Tags' });
+	const list = [...all, none];
+	it('any vs all', async () => {
+		const { searchContacts } = await import('./contacts');
+		expect(searchContacts(list, '', f({ tags: ['Work', 'Climbing'] })).map((c) => c.id)).toEqual([1, 2]);
+		expect(searchContacts(list, '', f({ tags: ['Work', 'Climbing'], mode: 'all' })).map((c) => c.id)).toEqual([2]);
+	});
+	it('untagged', async () => {
+		const { searchContacts } = await import('./contacts');
+		expect(searchContacts(list, '', f({ untagged: true })).map((c) => c.id)).toEqual([3, 4]);
+	});
+	it('URL round trip', async () => {
+		const { parseTagFilter, tagFilterParams } = await import('./contacts');
+		const p = tagFilterParams({ tags: ['A', 'B c'], mode: 'all', untagged: false });
+		expect(p.toString()).toBe('tag=A&tag=B+c&tagmode=all');
+		expect(parseTagFilter(p)).toEqual({ tags: ['A', 'B c'], mode: 'all', untagged: false });
+		expect(parseTagFilter(new URLSearchParams('tag=&tag=A&tag=A&untagged=1'))).toEqual({ tags: ['A'], mode: 'any', untagged: true });
+	});
+	it('tag counts include empty known tags', async () => {
+		const { tagCounts } = await import('./contacts');
+		expect(tagCounts(list, ['Unused'])).toEqual([
+			{ name: 'Climbing', count: 2 },
+			{ name: 'Work', count: 1 },
+			{ name: 'Unused', count: 0 }
+		]);
+	});
+	it('clipboard lists', async () => {
+		const { clipboardList } = await import('./contacts');
+		expect(clipboardList([zoe, bob, ann], 'emails')).toEqual({ text: 'Zoé Martin <zoe@example.test>\nann Lee <ann@work.test>', count: 2, missing: 1 });
+		expect(clipboardList([bob], 'phones').text).toBe('Bob Stone: 604-555-9999');
+	});
+});

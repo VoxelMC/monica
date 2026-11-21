@@ -25,6 +25,8 @@ export function parseSort(v: string | null | undefined): SortKey {
 	return SORT_KEYS.includes(v as SortKey) ? (v as SortKey) : 'name';
 }
 
+const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+
 /** Lowercase and strip accents, so "Zoé" matches "zoe". */
 export function fold(s: string): string {
 	return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
@@ -53,11 +55,60 @@ export function matches(c: ContactCard, query: string): boolean {
 	return terms.every((t) => text.includes(t) || phoneMatch(t));
 }
 
-export function searchContacts(list: ContactCard[], query: string, tag?: string | null): ContactCard[] {
-	return list.filter((c) => (!tag || c.tags.includes(tag)) && matches(c, query));
+export interface TagFilter {
+	tags: string[];
+	/** 'any': has at least one of the tags; 'all': has every tag. */
+	mode: 'any' | 'all';
+	untagged: boolean;
 }
 
-const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+export const NO_TAG_FILTER: TagFilter = { tags: [], mode: 'any', untagged: false };
+
+export function matchesTags(c: ContactCard, f: TagFilter): boolean {
+	if (f.untagged && c.tags.length) return false;
+	if (!f.tags.length) return true;
+	return f.mode === 'all' ? f.tags.every((t) => c.tags.includes(t)) : f.tags.some((t) => c.tags.includes(t));
+}
+
+export function searchContacts(list: ContactCard[], query: string, filter: TagFilter | string | null = null): ContactCard[] {
+	const f: TagFilter = typeof filter === 'string' ? { ...NO_TAG_FILTER, tags: [filter] } : (filter ?? NO_TAG_FILTER);
+	return list.filter((c) => matchesTags(c, f) && matches(c, query));
+}
+
+/** Read the tag filter from URL params: ?tag=a&tag=b&tagmode=all&untagged=1 */
+export function parseTagFilter(params: Pick<URLSearchParams, 'get' | 'getAll'>): TagFilter {
+	return {
+		tags: [...new Set(params.getAll('tag').filter(Boolean))],
+		mode: params.get('tagmode') === 'all' ? 'all' : 'any',
+		untagged: params.get('untagged') === '1'
+	};
+}
+
+export function tagFilterParams(f: TagFilter, params = new URLSearchParams()): URLSearchParams {
+	for (const t of f.tags) params.append('tag', t);
+	if (f.tags.length > 1 && f.mode === 'all') params.set('tagmode', 'all');
+	if (f.untagged) params.set('untagged', '1');
+	return params;
+}
+
+/** Tag name -> number of contacts, plus tags with no contacts (from /api/tags). */
+export function tagCounts(list: ContactCard[], known: string[] = []): { name: string; count: number }[] {
+	const counts = new Map<string, number>(known.map((k) => [k, 0]));
+	for (const c of list) for (const t of c.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+	return [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || collator.compare(a.name, b.name));
+}
+
+/** Text for the clipboard: one "Name <value>" line per value. */
+export function clipboardList(list: ContactCard[], kind: 'emails' | 'phones'): { text: string; count: number; missing: number } {
+	const lines: string[] = [];
+	let missing = 0;
+	for (const c of list) {
+		const values = c[kind];
+		if (!values.length) missing++;
+		for (const v of values) lines.push(kind === 'emails' ? `${c.name} <${v}>` : `${c.name}: ${v}`);
+	}
+	return { text: lines.join('\n'), count: lines.length, missing };
+}
 
 export function sortContacts(list: ContactCard[], key: SortKey): ContactCard[] {
 	const out = [...list];
