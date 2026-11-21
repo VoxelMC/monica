@@ -1,7 +1,16 @@
 @import 'tailwindcss';
 
 /* Dark mode follows the system; a manual toggle can set data-theme later. */
-@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *), @media (prefers-color-scheme: dark) { &:not([data-theme='light'] *) });
+@custom-variant dark {
+	&:where([data-theme='dark'], [data-theme='dark'] *) {
+		@slot;
+	}
+	@media (prefers-color-scheme: dark) {
+		&:not(:where([data-theme='light'], [data-theme='light'] *)) {
+			@slot;
+		}
+	}
+}
 
 @theme {
 	--color-accent-50: #f0fdfa;

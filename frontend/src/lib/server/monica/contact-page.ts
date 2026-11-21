@@ -3,6 +3,7 @@
 // notes, activities, calls, conversations, tasks, gifts and reminders come from
 // /api/contacts/{id}/<resource>, all paginated.
 import { birthdayInfo, fieldHref, mapHref, parseBirthday, safeHttpUrl, sortTimeline, type BirthdayInfo, type ContactFieldView, type TimelineItem } from '../../contact';
+import { displayName } from '../../contacts';
 import type { MonicaClient } from './client';
 import { MonicaHttpError } from './errors';
 import { activity, call, contactDetail, conversation, gift, note, reminder, single, task } from './schemas';
@@ -111,7 +112,7 @@ export async function loadContactPage(client: MonicaClient, id: number, today = 
 	return {
 		id: detail.id,
 		hashId: detail.hash_id,
-		name: detail.complete_name,
+		name: displayName(detail.first_name, detail.last_name, detail.complete_name),
 		nickname: detail.nickname,
 		initials: detail.initials,
 		color: detail.information.avatar.default_avatar_color ?? '#64748b',

@@ -67,6 +67,7 @@ test('tags page links to a filtered list', async ({ page }) => {
 test('select mode: select all shown, copy emails, cards do not navigate', async ({ page, context, browserName }) => {
 	if (browserName === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 	await page.goto('/contacts');
+	await page.waitForLoadState('networkidle'); // the Select button needs JS
 	await page.getByRole('button', { name: 'Select', exact: true }).click();
 	const bar = page.getByTestId('bulk-bar');
 	await expect(bar).toContainText('0 selected');

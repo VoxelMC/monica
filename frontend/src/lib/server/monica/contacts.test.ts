@@ -40,6 +40,10 @@ describe('toCard', () => {
 		const c = toCard(contactListItem.parse(raw(1)));
 		expect(c).toMatchObject({ id: 1, name: 'F1 L', color: '#fdb660', hasPhoto: false, tags: ['Friends'], phones: ['+1 604 555 0101'], emails: ['a@example.test'] });
 	});
+	it('display name is first + last, not complete_name with the nickname', () => {
+		expect(toCard(contactListItem.parse(raw(1, { nickname: 'Ace', complete_name: 'F1 L (Ace)' }))).name).toBe('F1 L');
+		expect(toCard(contactListItem.parse(raw(1, { first_name: null, last_name: null, complete_name: 'Only' }))).name).toBe('Only');
+	});
 	it('lastContacted is the later of activity and call', () => {
 		const c = toCard(contactListItem.parse(raw(1, { last_called: '2026-10-01', last_activity_together: '2026-09-01T10:00:00Z' })));
 		expect(c.lastContacted).toBe('2026-10-01');

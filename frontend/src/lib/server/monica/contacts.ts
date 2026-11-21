@@ -4,7 +4,7 @@
 //  - ?sort= only supports created_at / updated_at; other sorts happen in orbit
 //  - Photo files under /store need a web session; GET /api/contacts/{id}/photos
 //    returns them as base64 `dataUrl`
-import type { ContactCard } from '../../contacts';
+import { displayName, type ContactCard } from '../../contacts';
 import type { MonicaClient } from './client';
 import { contactListItem, photo, tag, type ContactListItem } from './schemas';
 
@@ -15,7 +15,7 @@ export function toCard(c: ContactListItem): ContactCard {
 	const fields = c.contactFields ?? [];
 	return {
 		id: c.id,
-		name: c.complete_name,
+		name: displayName(c.first_name, c.last_name, c.complete_name),
 		firstName: c.first_name,
 		lastName: c.last_name,
 		nickname: c.nickname,

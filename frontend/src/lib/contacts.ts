@@ -149,3 +149,8 @@ export function fullDate(iso: string): string {
 	const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
 	return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 }
+
+/** First + last name; Monica's complete_name can embed the nickname, e.g. "Ana Bernaz (Ana)". */
+export function displayName(first: string | null, last: string | null, complete: string): string {
+	return [first, last].filter((s) => s && s.trim()).join(' ') || complete;
+}
