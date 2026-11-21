@@ -48,21 +48,26 @@
 	main {
 		max-width: 40rem;
 		margin: 0 auto;
-		padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
-		font: 16px/1.5 system-ui, sans-serif;
-		color: #1f2933;
+		padding: max(1rem, env(safe-area-inset-top)) 1rem 1rem;
+	}
+	h1 {
+		font-size: 1.75rem;
+		font-weight: 600;
+		margin: 0.5rem 0 0;
 	}
 	section {
-		border: 1px solid #d9dee3;
+		background: var(--surface);
+		border: 1px solid var(--line);
 		border-radius: 12px;
 		padding: 1rem;
 		margin-block: 1rem;
 	}
 	section.bad {
-		border-color: #c53030;
+		border-color: var(--attention);
 	}
 	h2 {
 		font-size: 1rem;
+		font-weight: 600;
 		margin: 0 0 0.5rem;
 	}
 	dl {
@@ -72,8 +77,8 @@
 		margin: 0;
 	}
 	dt {
-		color: #52606d;
-		font-size: 14px;
+		color: var(--muted);
+		font-size: 0.875rem;
 	}
 	dd {
 		margin: 0;
@@ -83,17 +88,7 @@
 		margin: 0 0 0.5rem;
 	}
 	.warn {
-		color: #c53030;
+		color: var(--attention);
 		font-weight: 600;
-	}
-	@media (prefers-color-scheme: dark) {
-		main { color: #e4e7eb; }
-		section { border-color: #3e4c59; }
-		dt { color: #9aa5b1; }
-		.warn, section.bad { color: #fc8181; border-color: #fc8181; }
-	}
-	:global(body) { margin: 0; }
-	@media (prefers-color-scheme: dark) {
-		:global(body) { background: #121619; }
 	}
 </style>

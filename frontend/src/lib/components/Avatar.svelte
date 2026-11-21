@@ -32,7 +32,7 @@
 		decoding="async"
 		width="80"
 		height="80"
-		class="{size} shrink-0 rounded-full bg-slate-200 object-cover dark:bg-slate-800"
+		class="{size} shrink-0 rounded-full bg-surface-2 object-cover"
 		onerror={() => (failed = true)}
 	/>
 {:else}

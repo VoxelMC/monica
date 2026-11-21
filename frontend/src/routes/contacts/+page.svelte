@@ -27,6 +27,8 @@
 
 	const tagFilter = $derived({ tags, mode: tagMode, untagged });
 	const everyTag = $derived(allTags(data.contacts));
+	// Active chips first, so a filter set from a link (e.g. the Tags page) is visible without scrolling.
+	const chipOrder = $derived([...tags.filter((t) => everyTag.includes(t)), ...everyTag.filter((t) => !tags.includes(t))]);
 	const shown = $derived(sortContacts(searchContacts(data.contacts, query, tagFilter), sort));
 	const filtering = $derived(!!query || tags.length > 0 || untagged);
 
@@ -111,20 +113,20 @@
 
 	const sortLabels: Record<SortKey, string> = { name: 'Name', 'last-contacted': 'Last contacted', recent: 'Recently added' };
 	const chip = 'inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-sm whitespace-nowrap';
-	const chipOn = 'border-accent-600 bg-accent-600 text-white';
-	const chipOff = 'border-slate-300 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200';
+	const chipOn = 'border-accent-solid bg-accent-solid text-on-accent';
+	const chipOff = 'border-control bg-surface text-fg';
 </script>
 
 <svelte:head><title>People · orbit</title></svelte:head>
 
 <div class="mx-auto max-w-2xl px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-	<header class="sticky top-0 z-10 -mx-4 bg-slate-50/95 px-4 pt-2 pb-3 backdrop-blur dark:bg-slate-950/95">
+	<header class="sticky top-0 z-10 -mx-4 bg-bg/95 px-4 pt-2 pb-3 backdrop-blur">
 		<div class="mb-3 flex items-center justify-between gap-2">
 			<h1 class="text-2xl font-semibold">People</h1>
 			{#if selecting}
-				<button type="button" class="min-h-11 rounded-[var(--radius-input)] px-3 font-medium text-accent-700 dark:text-accent-500" onclick={exitSelect}>Done</button>
+				<button type="button" class="min-h-11 rounded-[var(--radius-input)] px-3 font-medium text-accent" onclick={exitSelect}>Done</button>
 			{:else}
-				<button type="button" class="min-h-11 rounded-[var(--radius-input)] px-3 text-accent-700 dark:text-accent-500" onclick={() => (selecting = true)}>Select</button>
+				<button type="button" class="min-h-11 rounded-[var(--radius-input)] px-3 text-accent" onclick={() => (selecting = true)}>Select</button>
 			{/if}
 		</div>
 
@@ -140,14 +142,14 @@
 					enterkeyhint="search"
 					placeholder="Name, nickname, email or phone"
 					bind:value={query}
-					class="h-12 min-w-0 flex-1 rounded-[var(--radius-input)] border border-slate-300 bg-white px-3 text-base placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-900"
+					class="h-12 min-w-0 flex-1 rounded-[var(--radius-input)] border border-control bg-surface px-3 text-base placeholder:text-muted"
 				/>
 				<label>
 					<span class="sr-only">Sort by</span>
 					<select
 						name="sort"
 						bind:value={sort}
-						class="h-12 rounded-[var(--radius-input)] border border-slate-300 bg-white px-2 text-base dark:border-slate-700 dark:bg-slate-900"
+						class="h-12 rounded-[var(--radius-input)] border border-control bg-surface px-2 text-base"
 					>
 						{#each Object.entries(sortLabels) as [k, label] (k)}<option value={k}>{label}</option>{/each}
 					</select>
@@ -158,7 +160,7 @@
 			{#if everyTag.length}
 				<div class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="group" aria-label="Filter by tag">
 					<button type="button" class="{chip} {untagged ? chipOn : chipOff} border-dashed" aria-pressed={untagged} onclick={() => ((untagged = !untagged), (tags = []))}>Untagged</button>
-					{#each everyTag as t (t)}
+					{#each chipOrder as t (t)}
 						<button type="button" class="{chip} {tags.includes(t) ? chipOn : chipOff}" aria-pressed={tags.includes(t)} onclick={() => toggleTag(t)}>{t}</button>
 					{/each}
 				</div>
@@ -166,32 +168,32 @@
 					<!-- Without JS: plain checkboxes submitted with the GET form. -->
 					<fieldset class="flex flex-wrap gap-2 text-sm">
 						{#each everyTag as t (t)}<label><input type="checkbox" name="tag" value={t} checked={tags.includes(t)} /> {t}</label>{/each}
-						<button class="rounded bg-accent-600 px-3 text-white">Go</button>
+						<button class="rounded bg-accent-solid px-3 text-on-accent">Go</button>
 					</fieldset>
 				</noscript>
 			{/if}
 		</form>
 
-		<div class="mt-2 flex min-h-6 items-center justify-between gap-2 text-sm text-slate-500 dark:text-slate-400">
+		<div class="mt-2 flex min-h-6 items-center justify-between gap-2 text-sm text-muted">
 			<p aria-live="polite" data-testid="count">
 				{shown.length === data.contacts.length ? `${data.contacts.length} people` : `${shown.length} of ${data.contacts.length} people`}
 			</p>
 			<div class="flex items-center gap-3">
 				{#if tags.length > 1}
-					<button type="button" class="text-accent-700 dark:text-accent-500" onclick={() => (tagMode = tagMode === 'any' ? 'all' : 'any')} data-testid="tag-mode">
+					<button type="button" class="text-accent" onclick={() => (tagMode = tagMode === 'any' ? 'all' : 'any')} data-testid="tag-mode">
 						Match {tagMode === 'any' ? 'any tag' : 'all tags'}
 					</button>
 				{/if}
-				{#if filtering}<button type="button" class="text-accent-700 dark:text-accent-500" onclick={clearFilters}>Clear</button>{/if}
+				{#if filtering}<button type="button" class="text-accent" onclick={clearFilters}>Clear</button>{/if}
 			</div>
 		</div>
 
 		{#if selecting}
 			<div class="mt-2 flex items-center justify-between gap-2 text-sm">
-				<button type="button" class="min-h-9 text-accent-700 dark:text-accent-500" onclick={toggleAllShown} disabled={!shown.length}>
+				<button type="button" class="min-h-9 text-accent" onclick={toggleAllShown} disabled={!shown.length}>
 					{allShownSelected ? 'Deselect' : 'Select'} all {shown.length} shown
 				</button>
-				{#if selected.size}<button type="button" class="min-h-9 text-slate-500" onclick={() => selected.clear()}>Clear selection</button>{/if}
+				{#if selected.size}<button type="button" class="min-h-9 text-muted" onclick={() => selected.clear()}>Clear selection</button>{/if}
 			</div>
 		{/if}
 	</header>
@@ -203,24 +205,24 @@
 			{/each}
 		</ul>
 	{:else if data.contacts.length}
-		<div class="py-12 text-center text-slate-500 dark:text-slate-400">
+		<div class="py-12 text-center text-muted">
 			<p>No one matches{query ? ` “${query}”` : ''}{tags.length ? ` with ${tags.length === 1 ? 'tag' : tagMode === 'all' ? 'all of' : 'any of'} ${tags.join(', ')}` : ''}{untagged ? ' without tags' : ''}.</p>
-			<button class="mt-3 min-h-11 rounded-[var(--radius-input)] px-4 text-accent-700 dark:text-accent-500" onclick={clearFilters}>Clear search</button>
+			<button class="mt-3 min-h-11 rounded-[var(--radius-input)] px-4 text-accent" onclick={clearFilters}>Clear search</button>
 		</div>
 	{:else}
-		<p class="py-12 text-center text-slate-500 dark:text-slate-400">No contacts in Monica yet. Add one in Monica to see it here.</p>
+		<p class="py-12 text-center text-muted">No contacts in Monica yet. Add one in Monica to see it here.</p>
 	{/if}
 </div>
 
 <!-- Bulk action bar, above the phone tab bar -->
 {#if selecting}
 	<div
-		class="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:bottom-0 lg:left-56 dark:border-slate-800 dark:bg-slate-950/95"
+		class="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 border-t border-line bg-surface px-4 py-3 lg:bottom-0 lg:left-56"
 		data-testid="bulk-bar"
 	>
 		<div class="mx-auto flex max-w-2xl flex-col gap-2">
 			<p class="text-sm font-medium" aria-live="polite">
-				{selected.size} selected{#if hiddenSelected > 0}<span class="font-normal text-slate-500"> ({hiddenSelected} hidden by filter)</span>{/if}
+				{selected.size} selected{#if hiddenSelected > 0}<span class="font-normal text-muted"> ({hiddenSelected} hidden by filter)</span>{/if}
 			</p>
 			<div class="flex gap-2 overflow-x-auto [scrollbar-width:none]">
 				<button type="button" class="{chip} {chipOff}" disabled={!selected.size} onclick={() => copy('emails')}>Copy emails</button>
@@ -229,24 +231,24 @@
 				<button type="button" class="{chip} {chipOff} opacity-50" disabled title="Arrives with writes (slice 4)">Remove tag…</button>
 				<button type="button" class="{chip} {chipOff} opacity-50" disabled title="Arrives with writes (slice 4)">Log catch-up…</button>
 			</div>
-			<p class="text-xs text-slate-500 dark:text-slate-400">Tagging and logging arrive with writes (slice 4).</p>
+			<p class="text-xs text-muted">Tagging and logging arrive with writes (slice 4).</p>
 		</div>
 	</div>
 {/if}
 
 {#if toast}
-	<div class="fixed inset-x-4 top-[max(1rem,env(safe-area-inset-top))] z-40 mx-auto max-w-sm rounded-[var(--radius-card)] bg-slate-900 px-4 py-3 text-sm text-white shadow-lg dark:bg-slate-100 dark:text-slate-900" role="status">
+	<div class="fixed inset-x-4 top-[max(1rem,env(safe-area-inset-top))] z-40 mx-auto max-w-sm rounded-[var(--radius-card)] bg-fg px-4 py-3 text-sm text-bg shadow-lg" role="status">
 		{toast}
 	</div>
 {/if}
 
 {#if fallbackText}
 	<div class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal="true" aria-label="Copy list">
-		<div class="w-full max-w-lg rounded-t-[var(--radius-card)] bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-[var(--radius-card)] dark:bg-slate-900">
+		<div class="w-full max-w-lg rounded-t-[var(--radius-card)] bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-[var(--radius-card)]">
 			<p class="mb-2 text-sm">Your browser blocked the clipboard. Select the text and copy it:</p>
 			<!-- svelte-ignore a11y_autofocus -->
-			<textarea readonly autofocus class="h-48 w-full rounded-[var(--radius-input)] border border-slate-300 p-2 text-base dark:border-slate-700 dark:bg-slate-950" onfocus={(e) => e.currentTarget.select()}>{fallbackText}</textarea>
-			<button type="button" class="mt-2 min-h-11 w-full rounded-[var(--radius-input)] bg-accent-600 text-white" onclick={() => (fallbackText = '')}>Close</button>
+			<textarea readonly autofocus class="h-48 w-full rounded-[var(--radius-input)] border border-control p-2 text-base" onfocus={(e) => e.currentTarget.select()}>{fallbackText}</textarea>
+			<button type="button" class="mt-2 min-h-11 w-full rounded-[var(--radius-input)] bg-accent-solid text-on-accent" onclick={() => (fallbackText = '')}>Close</button>
 		</div>
 	</div>
 {/if}

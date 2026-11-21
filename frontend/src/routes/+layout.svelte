@@ -22,13 +22,13 @@
 
 <div class="lg:flex">
 	<!-- Desktop sidebar -->
-	<nav class="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-1 border-r border-slate-200 p-4 lg:flex dark:border-slate-800" aria-label="Main">
-		<a href="/contacts" class="mb-4 px-3 text-lg font-semibold text-accent-700 dark:text-accent-500">orbit</a>
+	<nav class="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-1 border-r border-line p-4 lg:flex" aria-label="Main">
+		<a href="/contacts" class="mb-4 px-3 text-lg font-semibold text-accent">orbit</a>
 		{#each tabs as t (t.href)}
 			<a
 				href={t.href}
 				aria-current={active(t.href) ? 'page' : undefined}
-				class="flex items-center gap-3 rounded-[var(--radius-input)] px-3 py-2 text-slate-600 hover:bg-slate-100 aria-[current=page]:bg-accent-50 aria-[current=page]:text-accent-700 dark:text-slate-300 dark:hover:bg-slate-900 dark:aria-[current=page]:bg-slate-900 dark:aria-[current=page]:text-accent-500"
+				class="flex items-center gap-3 rounded-[var(--radius-input)] px-3 py-2 text-muted hover:bg-surface-2 aria-[current=page]:bg-accent-soft aria-[current=page]:text-accent"
 			>
 				<svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={t.icon} /></svg>
 				{t.label}
@@ -43,14 +43,14 @@
 
 <!-- Phone bottom tab bar -->
 <nav
-	class="fixed inset-x-0 bottom-0 z-20 flex border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-950/95"
+	class="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
 	aria-label="Main"
 >
 	{#each tabs as t (t.href)}
 		<a
 			href={t.href}
 			aria-current={active(t.href) ? 'page' : undefined}
-			class="flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-xs text-slate-500 aria-[current=page]:text-accent-700 dark:text-slate-400 dark:aria-[current=page]:text-accent-500"
+			class="flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-xs text-muted aria-[current=page]:text-accent"
 		>
 			<svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={t.icon} /></svg>
 			{t.label}

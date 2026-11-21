@@ -12,15 +12,15 @@
 	let { contact: c, selecting = false, selected = false, ontoggle }: Props = $props();
 
 	const base =
-		'flex min-h-[4.5rem] w-full items-center gap-3 rounded-[var(--radius-card)] border bg-white p-3 text-left dark:bg-slate-900';
+		'flex min-h-[4.5rem] w-full items-center gap-3 rounded-[var(--radius-card)] border bg-surface p-3 text-left';
 </script>
 
 {#snippet body()}
 	{#if selecting}
 		<span
 			class="flex size-6 shrink-0 items-center justify-center rounded-md border-2 {selected
-				? 'border-accent-600 bg-accent-600 text-white'
-				: 'border-slate-300 dark:border-slate-600'}"
+				? 'border-accent-solid bg-accent-solid text-on-accent'
+				: 'border-control'}"
 			aria-hidden="true"
 		>
 			{#if selected}<svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-10" /></svg>{/if}
@@ -30,9 +30,9 @@
 	<div class="min-w-0 flex-1">
 		<p class="truncate font-medium">
 			{c.name}
-			{#if c.nickname}<span class="font-normal text-slate-500 dark:text-slate-400">“{c.nickname}”</span>{/if}
+			{#if c.nickname}<span class="font-normal text-muted">“{c.nickname}”</span>{/if}
 		</p>
-		<p class="truncate text-sm text-slate-500 dark:text-slate-400">
+		<p class="truncate text-sm text-muted">
 			{#if c.lastContacted}
 				<time datetime={c.lastContacted} title={fullDate(c.lastContacted)}>Last contact {relativeDate(c.lastContacted)}</time>
 			{:else}
@@ -42,7 +42,7 @@
 		{#if c.tags.length}
 			<ul class="mt-1 flex flex-wrap gap-1" aria-label="Tags">
 				{#each c.tags as t (t)}
-					<li class="rounded-full bg-accent-50 px-2 py-0.5 text-xs text-accent-700 dark:bg-slate-800 dark:text-accent-500">{t}</li>
+					<li class="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-on-accent-soft">{t}</li>
 				{/each}
 			</ul>
 		{/if}
@@ -55,7 +55,7 @@
 			type="button"
 			role="checkbox"
 			aria-checked={selected}
-			class="{base} {selected ? 'border-accent-500 bg-accent-50/50 dark:bg-slate-800' : 'border-slate-200 dark:border-slate-800'}"
+			class="{base} {selected ? 'border-accent-solid ring-1 ring-accent-solid' : 'border-line'}"
 			onclick={(e) => ontoggle?.(c.id, e.shiftKey)}
 		>
 			{@render body()}
@@ -63,7 +63,7 @@
 	{:else}
 		<a
 			href="/contacts/{c.id}"
-			class="{base} border-slate-200 hover:border-accent-500 active:bg-slate-50 dark:border-slate-800 dark:active:bg-slate-800"
+			class="{base} border-line hover:border-accent active:bg-surface-2"
 		>
 			{@render body()}
 		</a>
