@@ -217,6 +217,13 @@ The app uses Monica 4's REST API at `/api`, authenticated with a personal access
 - `POST /api/photos` (multipart: `contact_id`, `photo`) and `PUT /api/contacts/{id}/avatar` (`{"source":"photo","photo_id":…}`) work.
 - The migration scripts (`migrate.py`, `photos.py`) in the NAS archive are working reference code for these calls.
 
+### Found on staging 2026-11-21: some reads write
+
+- Monica's `HasUuid` trait gives a record a `uuid` the first time it is read if it has none, and saves it. `save(['timestamps' => false])` does not stop Laravel from updating `updated_at`, and contact fields and addresses also touch their contact.
+- Seen once on staging: the first `GET /api/contacts?with=contactfields` filled in the uuid of 3 contact fields created 17:35–17:38 that day and moved `updated_at` on them and on their 2 contacts. No content changed. Later reads changed nothing.
+- So orbit is not strictly zero-write: the first read of a record without a uuid writes the uuid and a new `updated_at`. Expect DAVx⁵ to re-sync such contacts once, and the conflict check to stop once if this happens between loading and saving (fails safe).
+- orbit cannot prevent this without changing Monica's PHP (out of scope). Take a fresh backup before orbit first reads production.
+
 ### Endpoints by feature
 
 | Feature | Read | Write (only after its slice is approved) |
