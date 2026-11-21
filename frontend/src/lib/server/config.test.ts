@@ -48,3 +48,19 @@ describe('MONICA_TOKEN', () => {
 	it('is required', () => expect(() => parseToken('  ')).toThrow());
 	it('returns the trimmed token', () => expect(parseToken(' abc ')).toBe('abc'));
 });
+
+describe('build-tolerant settings', async () => {
+	const { parseMonicaUrlOptional, parseTokenOptional, requireAtRuntime } = await import('./config');
+	it('missing values are allowed while building', () => {
+		expect(parseMonicaUrlOptional(undefined)).toBeUndefined();
+		expect(parseTokenOptional('  ')).toBeUndefined();
+		expect(requireAtRuntime('MONICA_URL', undefined, true)).toBeUndefined();
+	});
+	it('missing values stop the server at runtime', () => {
+		expect(() => requireAtRuntime('MONICA_URL', undefined, false)).toThrow('MONICA_URL is not set');
+		expect(requireAtRuntime('MONICA_URL', 'http://127.0.0.1:80', false)).toBe('http://127.0.0.1:80');
+	});
+	it('invalid values still throw', () => {
+		expect(() => parseMonicaUrlOptional('http://127.0.0.1:80/api')).toThrow();
+	});
+});

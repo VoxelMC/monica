@@ -23,7 +23,7 @@ ORBIT_READ_ONLY=true
 ORBIT_DRY_RUN=false
 MONICA_PUBLIC_URL=https://monica.trevfox.dev
 ENV
-nano orbit.env    # paste the real token
+vim orbit.env     # paste the real token
 
 # 4. Data folder for orbit's own database (the container runs as uid 1000)
 mkdir -p orbit-data && sudo chown 1000:1000 orbit-data

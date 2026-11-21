@@ -1,13 +1,17 @@
 // App-wide Monica client and guards, built from the environment.
-import { dev } from '$app/env';
-import { MONICA_PUBLIC_URL, MONICA_TOKEN, MONICA_URL, ORBIT_DB_PATH, ORBIT_DRY_RUN, ORBIT_READ_ONLY } from '$app/env/private';
+import { building, dev } from '$app/env';
+import { MONICA_PUBLIC_URL, MONICA_TOKEN as TOKEN_ENV, MONICA_URL as URL_ENV, ORBIT_DB_PATH, ORBIT_DRY_RUN, ORBIT_READ_ONLY } from '$app/env/private';
 import { createAuditLog } from '../audit';
-import { assertDevTargetsStaging } from '../config';
+import { assertDevTargetsStaging, requireAtRuntime } from '../config';
 import { openDb, type OrbitDb } from '../db';
 import { createMonicaClient, createTransport, type MonicaClient } from './client';
 import { createGuards, type Guards } from './guards';
 
-assertDevTargetsStaging(MONICA_URL, dev);
+// Placeholders only while `vite build` analyses routes; nothing is fetched then.
+const MONICA_URL = requireAtRuntime('MONICA_URL', URL_ENV, building) ?? 'http://127.0.0.1:9';
+const MONICA_TOKEN = requireAtRuntime('MONICA_TOKEN', TOKEN_ENV, building) ?? 'unset-at-build-time';
+
+if (!building) assertDevTargetsStaging(MONICA_URL, dev);
 
 const transport = createTransport({
 	baseUrl: MONICA_URL,

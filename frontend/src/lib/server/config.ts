@@ -60,3 +60,18 @@ export function parsePublicUrl(value: string | undefined): string | undefined {
 	if (!value || value.trim() === '') return undefined;
 	return parseMonicaUrl(value.trim());
 }
+
+/**
+ * Build-tolerant variants: `vite build` runs the app to analyse routes, with no
+ * secrets present (they arrive at runtime). Missing -> undefined here; the
+ * server refuses to start without them (requireAtRuntime in monica/index.ts).
+ * Invalid values still throw.
+ */
+export const parseMonicaUrlOptional = (v: string | undefined) => (v && v.trim() ? parseMonicaUrl(v) : undefined);
+export const parseTokenOptional = (v: string | undefined) => (v && v.trim() ? parseToken(v) : undefined);
+
+/** At runtime (not while building), required settings must be present. */
+export function requireAtRuntime<T>(name: string, value: T | undefined, isBuilding: boolean): T {
+	if (value === undefined && !isBuilding) throw new Error(`${name} is not set`);
+	return value as T;
+}

@@ -1,16 +1,16 @@
 import { defineEnvVars } from '@sveltejs/kit/env';
 import {
 	parseDryRun,
-	parseMonicaUrl,
+	parseMonicaUrlOptional,
 	parsePublicUrl,
 	parseReadOnly,
-	parseToken
+	parseTokenOptional
 } from './lib/server/config';
 
 // All variables are private (server-only) and read when the app starts.
 export const variables = defineEnvVars({
 	MONICA_URL: {
-		schema: parseMonicaUrl,
+		schema: parseMonicaUrlOptional,
 		description: 'Monica origin. Staging (http://127.0.0.1:8081) in dev; http://127.0.0.1:80 in production.'
 	},
 	MONICA_PUBLIC_URL: {
@@ -18,7 +18,7 @@ export const variables = defineEnvVars({
 		description: 'Optional. Monica as the browser sees it (e.g. https://monica.trevfox.dev), for "Open in Monica" links.'
 	},
 	MONICA_TOKEN: {
-		schema: parseToken,
+		schema: parseTokenOptional,
 		description: 'Monica personal access token. Server-side only; never log it.'
 	},
 	ORBIT_READ_ONLY: {
