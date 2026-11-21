@@ -111,3 +111,94 @@ export const photo = z.looseObject({
 	mime_type: z.string(),
 	dataUrl: z.string()
 });
+
+// ---- Contact page (slice 2). Shapes from Monica 4.1.2's API resources; most were
+// empty on staging, so optional/nullable is generous and objects stay loose.
+
+const nstr = z.string().nullable().optional();
+
+export const contactShort = z.looseObject({
+	id: z.number().int(),
+	complete_name: z.string(),
+	initials: z.string().optional(),
+	is_partial: z.boolean().optional()
+});
+
+export const specialDate = z.looseObject({
+	is_age_based: z.boolean().nullable().optional(),
+	is_year_unknown: z.boolean().nullable().optional(),
+	date: nstr
+});
+
+const relationshipGroup = z
+	.looseObject({
+		total: z.number().int(),
+		contacts: z
+			.array(z.looseObject({ relationship: z.looseObject({ name: z.string() }), contact: contactShort }))
+			.nullable()
+			.optional()
+	})
+	.optional();
+
+export const address = z.looseObject({
+	id: z.number().int(),
+	name: nstr,
+	street: nstr,
+	city: nstr,
+	province: nstr,
+	postal_code: nstr,
+	country: z.looseObject({ name: nstr }).nullable().optional()
+});
+
+/** GET /api/contacts/{id}?with=contactfields */
+export const contactDetail = contactListItem.extend({
+	hash_id: z.string(),
+	description: nstr,
+	is_dead: z.boolean(),
+	information: z.looseObject({
+		avatar: z.looseObject({ url: z.string().nullable(), source: z.string().nullable(), default_avatar_color: nstr }),
+		dates: z.looseObject({ birthdate: specialDate, deceased_date: specialDate.optional() }),
+		career: z.looseObject({ job: nstr, company: nstr }).optional(),
+		relationships: z
+			.looseObject({ love: relationshipGroup, family: relationshipGroup, friend: relationshipGroup, work: relationshipGroup })
+			.optional(),
+		how_you_met: z.looseObject({ general_information: nstr }).optional(),
+		food_preferences: nstr
+	}),
+	addresses: z.array(address).default([])
+});
+export type ContactDetail = z.infer<typeof contactDetail>;
+
+export const note = z.looseObject({ id: z.number().int(), body: z.string(), is_favorited: z.boolean().optional(), created_at: z.string() });
+export const activity = z.looseObject({
+	id: z.number().int(),
+	summary: nstr,
+	description: nstr,
+	happened_at: z.string(),
+	activity_type: z.looseObject({ name: nstr }).nullable().optional()
+});
+export const call = z.looseObject({ id: z.number().int(), called_at: z.string(), content: nstr, contact_called: z.boolean().nullable().optional() });
+export const conversation = z.looseObject({
+	id: z.number().int(),
+	happened_at: z.string(),
+	messages: z.array(z.looseObject({ content: z.string(), written_by_me: z.boolean() })).default([]),
+	contact_field_type: z.looseObject({ name: nstr }).nullable().optional()
+});
+export const task = z.looseObject({ id: z.number().int(), title: z.string(), description: nstr, completed: z.boolean(), created_at: z.string() });
+export const gift = z.looseObject({
+	id: z.number().int(),
+	name: z.string(),
+	comment: nstr,
+	url: nstr,
+	status: nstr, // idea | offered | received
+	amount_with_currency: nstr,
+	date: nstr
+});
+export const reminder = z.looseObject({
+	id: z.number().int(),
+	title: z.string(),
+	description: nstr,
+	frequency_type: nstr,
+	frequency_number: z.number().nullable().optional(),
+	initial_date: z.string()
+});

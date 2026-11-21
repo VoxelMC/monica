@@ -2,6 +2,7 @@ import { defineEnvVars } from '@sveltejs/kit/env';
 import {
 	parseDryRun,
 	parseMonicaUrl,
+	parsePublicUrl,
 	parseReadOnly,
 	parseToken
 } from './lib/server/config';
@@ -11,6 +12,10 @@ export const variables = defineEnvVars({
 	MONICA_URL: {
 		schema: parseMonicaUrl,
 		description: 'Monica origin. Staging (http://127.0.0.1:8081) in dev; http://127.0.0.1:80 in production.'
+	},
+	MONICA_PUBLIC_URL: {
+		schema: parsePublicUrl,
+		description: 'Optional. Monica as the browser sees it (e.g. https://monica.trevfox.dev), for "Open in Monica" links.'
 	},
 	MONICA_TOKEN: {
 		schema: parseToken,

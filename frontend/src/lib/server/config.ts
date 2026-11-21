@@ -54,3 +54,9 @@ export function parseToken(value: string | undefined): string {
 	if (!value || value.trim() === '') throw new Error('MONICA_TOKEN is not set');
 	return value.trim();
 }
+
+/** MONICA_PUBLIC_URL: optional browser-facing Monica origin for "Open in Monica" links. */
+export function parsePublicUrl(value: string | undefined): string | undefined {
+	if (!value || value.trim() === '') return undefined;
+	return parseMonicaUrl(value.trim());
+}

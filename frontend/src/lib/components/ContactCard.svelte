@@ -5,10 +5,10 @@
 	let { contact: c }: { contact: ContactCard } = $props();
 </script>
 
-<!-- Not a link yet: slice 2 adds the contact page. -->
-<li
-	class="flex min-h-[4.5rem] items-center gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
-	data-testid="contact-card"
+<li data-testid="contact-card">
+<a
+	href="/contacts/{c.id}"
+	class="flex min-h-[4.5rem] items-center gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 hover:border-accent-500 active:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:active:bg-slate-800"
 >
 	<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} />
 	<div class="min-w-0 flex-1">
@@ -31,4 +31,5 @@
 			</ul>
 		{/if}
 	</div>
+</a>
 </li>

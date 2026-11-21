@@ -6,8 +6,9 @@
 		color: string;
 		hasPhoto: boolean;
 		size?: string;
+		text?: string;
 	}
-	let { id, name, initials, color, hasPhoto, size = 'size-12' }: Props = $props();
+	let { id, name, initials, color, hasPhoto, size = 'size-12', text = 'text-sm' }: Props = $props();
 	let failed = $state(false);
 </script>
 
@@ -17,14 +18,14 @@
 		alt=""
 		loading="lazy"
 		decoding="async"
-		width="48"
-		height="48"
+		width="80"
+		height="80"
 		class="{size} shrink-0 rounded-full bg-slate-200 object-cover dark:bg-slate-800"
 		onerror={() => (failed = true)}
 	/>
 {:else}
 	<span
-		class="{size} flex shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+		class="{size} {text} flex shrink-0 items-center justify-center rounded-full font-semibold text-white"
 		style:background-color={color}
 		aria-hidden="true"
 		title={name}

@@ -1,6 +1,6 @@
 // App-wide Monica client and guards, built from the environment.
 import { dev } from '$app/env';
-import { MONICA_TOKEN, MONICA_URL, ORBIT_DB_PATH, ORBIT_DRY_RUN, ORBIT_READ_ONLY } from '$app/env/private';
+import { MONICA_PUBLIC_URL, MONICA_TOKEN, MONICA_URL, ORBIT_DB_PATH, ORBIT_DRY_RUN, ORBIT_READ_ONLY } from '$app/env/private';
 import { createAuditLog } from '../audit';
 import { assertDevTargetsStaging } from '../config';
 import { openDb, type OrbitDb } from '../db';
@@ -19,6 +19,8 @@ export const monica: MonicaClient = createMonicaClient(transport, { cacheTtlMs: 
 
 export const settings = {
 	monicaUrl: MONICA_URL,
+	/** Browser-facing Monica origin; in dev, staging is reachable through the SSH tunnel. */
+	publicMonicaUrl: MONICA_PUBLIC_URL ?? (dev ? MONICA_URL : undefined),
 	readOnly: ORBIT_READ_ONLY,
 	dryRun: ORBIT_DRY_RUN,
 	dbPath: ORBIT_DB_PATH
