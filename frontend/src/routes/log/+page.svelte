@@ -1,9 +1,24 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import Avatar from '#lib/components/Avatar.svelte';
-	import { allTags, searchContacts, sortContacts } from '#lib/contacts.js';
-	import { checkHangout, checkJournal, hangoutPayload, journalPayload, parsePeople, todayIso } from '#lib/log.js';
-	import { untrack } from 'svelte';
+	import { allTags, fold, searchContacts, sortContacts } from '#lib/contacts.js';
+	import {
+		activeMentions,
+		checkHangout,
+		checkJournal,
+		checkPersonNotes,
+		hangoutPayload,
+		insertMention,
+		journalPayload,
+		mentionQuery,
+		parsePeople,
+		personNotePayloads,
+		rankForMention,
+		snapPunctuation,
+		todayIso,
+		type Mention
+	} from '#lib/log.js';
+	import { tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 
@@ -49,19 +64,78 @@
 		)
 	);
 
+	// Per-person notes: "what I learned about them", saved as a note on each person's page.
+	let personNotes = $state<Record<number, string>>({});
+	const openNotes = new SvelteSet<number>();
+	function openNote(id: number) {
+		openNotes.add(id);
+		tick().then(() => document.getElementById(`note-${id}`)?.focus());
+	}
+
 	// ---- Journal
 	let title = $state('');
 	let post = $state('');
+	let postEl = $state<HTMLTextAreaElement>();
+	let picks = $state<Mention[]>([]);
+	let mq = $state<{ query: string; start: number } | null>(null);
+	let insertedAt: number | null = null; // caret right after the last inserted mention
+	const mentions = $derived(activeMentions(post, picks));
+	const mentionSuggestions = $derived(
+		mq === null
+			? []
+			: (mq.query.trim() ? rankForMention(searchContacts(data.contacts, mq.query), mq.query, fold) : sortContacts(data.contacts, 'last-contacted')).slice(0, 5)
+	);
+	function trackMention() {
+		mq = postEl ? mentionQuery(post, postEl.selectionStart) : null;
+	}
+	async function pickMention(c: (typeof data.contacts)[number]) {
+		if (!postEl || !mq) return;
+		const r = insertMention(post, mq.start, postEl.selectionStart, c.name);
+		post = r.text;
+		picks = [...picks, { contactId: c.id, name: c.name }];
+		mq = null;
+		insertedAt = r.caret;
+		await tick();
+		postEl.focus();
+		postEl.setSelectionRange(r.caret, r.caret);
+	}
+	function mentionKeys(e: KeyboardEvent) {
+		// Modifier keys (Shift for "!" or "?") don't end the chance to snap punctuation.
+		if (postEl && !['Shift', 'Alt', 'Control', 'Meta', 'AltGraph', 'CapsLock'].includes(e.key)) {
+			const snap = snapPunctuation(post, postEl.selectionStart, e.key, insertedAt);
+			insertedAt = null;
+			if (snap) {
+				e.preventDefault();
+				post = snap.text;
+				tick().then(() => postEl?.setSelectionRange(snap.caret, snap.caret));
+				return;
+			}
+		}
+		if (!mq || !mentionSuggestions.length) return;
+		if (e.key === 'Enter' || e.key === 'Tab') {
+			e.preventDefault();
+			pickMention(mentionSuggestions[0]);
+		} else if (e.key === 'Escape') {
+			mq = null;
+		}
+	}
 
 	// ---- Preview (slice 4 sends exactly this through the write guards)
 	let showProblems = $state(false);
-	const hangoutDraft = $derived({ contactIds: [...people], summary, description, date, activityTypeId: typeId });
-	const problems = $derived(kind === 'hangout' ? checkHangout(hangoutDraft) : checkJournal({ title, post }));
+	const hangoutDraft = $derived({ contactIds: [...people], personNotes, summary, description, date, activityTypeId: typeId });
+	const problems = $derived(
+		kind === 'hangout' ? { ...checkHangout(hangoutDraft), ...checkPersonNotes(hangoutDraft) } : checkJournal({ title, post })
+	);
 	const ok = $derived(Object.keys(problems).length === 0);
-	const preview = $derived(
+	const nameOf = (id: number) => data.contacts.find((c) => c.id === id)?.name ?? `#${id}`;
+	// Every request slice 4 would send, in order.
+	const requests = $derived(
 		kind === 'hangout'
-			? { method: 'POST', endpoint: '/api/activities', body: hangoutPayload(hangoutDraft) }
-			: { method: 'POST', endpoint: '/api/journal', body: journalPayload({ title, post }) }
+			? [
+					{ label: `One activity for ${picked.length} ${picked.length === 1 ? 'person' : 'people'}`, endpoint: '/api/activities', body: hangoutPayload(hangoutDraft) as object },
+					...personNotePayloads(hangoutDraft).map((n) => ({ label: `Note on ${nameOf(n.contact_id)}’s page`, endpoint: '/api/notes', body: n as object }))
+				]
+			: [{ label: 'Journal entry', endpoint: '/api/journal', body: journalPayload({ title, post }) as object }]
 	);
 	let previewOpen = $state(false);
 
@@ -130,6 +204,39 @@
 				{#if showProblems && problems.people}<p class={err}>{problems.people}</p>{/if}
 			</fieldset>
 
+			{#if picked.length}
+				<section aria-labelledby="about-each">
+					<h2 id="about-each" class={label}>About each person <span class="font-normal text-muted">(optional)</span></h2>
+					<p class="mb-2 text-sm text-muted">What you learned or want to remember. Saved as a note on their page.</p>
+					<div class="flex flex-col gap-3">
+						{#each picked as c (c.id)}
+							{#if openNotes.has(c.id) || personNotes[c.id]}
+								<div>
+									<label for="note-{c.id}" class="mb-1 flex items-center gap-2 text-sm">
+										<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} size="size-6" text="text-[10px]" />
+										{c.name}
+									</label>
+									<textarea
+										id="note-{c.id}"
+										rows="2"
+										class="{input} py-2"
+										placeholder="e.g. Starting a new job in March"
+										value={personNotes[c.id] ?? ''}
+										oninput={(e) => (personNotes = { ...personNotes, [c.id]: e.currentTarget.value })}
+									></textarea>
+								</div>
+							{/if}
+						{/each}
+					</div>
+					<div class="mt-2 flex flex-wrap gap-2">
+						{#each picked.filter((c) => !openNotes.has(c.id) && !personNotes[c.id]) as c (c.id)}
+							<button type="button" class="{chip} border-control bg-surface" onclick={() => openNote(c.id)}>+ Note on {c.name.split(' ')[0]}</button>
+						{/each}
+					</div>
+					{#if showProblems && problems.notes}<p class={err}>{problems.notes}</p>{/if}
+				</section>
+			{/if}
+
 			<div>
 				<label class={label} for="summary">What did you do?</label>
 				<input id="summary" class="{input} h-11" maxlength="255" placeholder="Dinner at Ana’s" bind:value={summary} />
@@ -165,7 +272,41 @@
 			</div>
 			<div>
 				<label class={label} for="post">Entry</label>
-				<textarea id="post" rows="8" class="{input} py-2" bind:value={post}></textarea>
+				<textarea
+					id="post"
+					rows="8"
+					class="{input} py-2"
+					placeholder="Type @ to mention someone"
+					aria-describedby="mention-hint"
+					aria-autocomplete="list"
+					aria-controls="mention-list"
+					bind:this={postEl}
+					bind:value={post}
+					oninput={trackMention}
+					onclick={trackMention}
+					onkeyup={(e) => { if (e.key.startsWith('Arrow')) trackMention(); }}
+					onkeydown={mentionKeys}
+					onblur={() => setTimeout(() => (mq = null), 150)}
+				></textarea>
+				{#if mentionSuggestions.length}
+					<ul id="mention-list" role="listbox" aria-label="Mention someone" class="mt-1 overflow-hidden rounded-[var(--radius-input)] border border-control bg-surface shadow-md">
+						{#each mentionSuggestions as c, i (c.id)}
+							<li role="option" aria-selected={i === 0}>
+								<button type="button" class="flex min-h-11 w-full items-center gap-3 px-3 text-left hover:bg-surface-2 {i === 0 ? 'bg-surface-2' : ''}" onmousedown={(e) => e.preventDefault()} onclick={() => pickMention(c)}>
+									<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} size="size-7" text="text-xs" />
+									{c.name}
+								</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<p id="mention-hint" class="mt-1 text-sm text-muted">Type @ and a name to mention someone; it links the entry to their page.</p>
+				{#if mentions.length}
+					<p class="mt-2 text-sm" data-testid="mentions">
+						<span class="text-muted">Mentioned:</span>
+						{#each mentions as m, i (m.contactId)}<a href="/contacts/{m.contactId}" class="text-accent">{m.name}</a>{i < mentions.length - 1 ? ', ' : ''}{/each}
+					</p>
+				{/if}
 				{#if showProblems && problems.post}<p class={err}>{problems.post}</p>{/if}
 			</div>
 		{/if}
@@ -182,11 +323,19 @@
 	<div class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal="true" aria-label="Preview">
 		<div class="max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-t-[var(--radius-card)] bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-[var(--radius-card)]">
 			<h2 class="text-lg font-semibold">This would be sent to Monica</h2>
-			{#if kind === 'hangout'}
-				<p class="mt-1 text-sm text-muted">One activity for {picked.length} {picked.length === 1 ? 'person' : 'people'}: {picked.map((c) => c.name).join(', ')}. It will appear on each of their timelines.</p>
+			<p class="mt-1 text-sm text-muted">{requests.length} {requests.length === 1 ? 'request' : 'requests'}, in this order. The activity appears on each person’s timeline.</p>
+			<ol class="mt-3 flex flex-col gap-3" data-testid="preview">
+				{#each requests as r, i (i)}
+					<li>
+						<p class="mb-1 text-sm font-medium">{i + 1}. {r.label}</p>
+						<pre class="overflow-x-auto rounded-[var(--radius-input)] bg-surface-2 p-3 text-sm whitespace-pre-wrap break-words">POST {r.endpoint}
+{JSON.stringify(r.body, null, 2)}</pre>
+					</li>
+				{/each}
+			</ol>
+			{#if kind === 'journal' && mentions.length}
+				<p class="mt-3 text-sm">Then orbit links the entry to {mentions.map((m) => m.name).join(', ')} in its own database (nothing extra in Monica).</p>
 			{/if}
-			<pre class="mt-3 overflow-x-auto rounded-[var(--radius-input)] bg-surface-2 p-3 text-sm" data-testid="preview">{preview.method} {preview.endpoint}
-{JSON.stringify(preview.body, null, 2)}</pre>
 			<p class="mt-2 text-sm text-muted">Nothing has been sent.</p>
 			<button type="button" class="mt-3 min-h-12 w-full rounded-[var(--radius-input)] bg-accent-solid font-medium text-on-accent" onclick={() => (previewOpen = false)}>Back to editing</button>
 		</div>

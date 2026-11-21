@@ -118,3 +118,41 @@ test('diary page loads with the Log button in the nav', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Diary' })).toBeVisible();
 	await expect(page.getByRole('link', { name: /Log/ }).first()).toBeVisible();
 });
+
+test('log: a note for one person becomes a second request in the preview', async ({ page }) => {
+	await page.goto('/log?people=1,3');
+	await page.waitForLoadState('networkidle');
+	const first = page.getByRole('button', { name: /^\+ Note on/ }).first();
+	const who = (await first.innerText()).replace('+ Note on ', '').trim();
+	await first.click();
+	await page.getByPlaceholder('e.g. Starting a new job in March').fill('Moving to Lisbon in spring');
+	await page.getByLabel('What did you do?').fill('Dinner');
+	await page.getByRole('button', { name: 'Preview' }).click();
+	const pre = page.getByTestId('preview');
+	await expect(pre).toContainText('POST /api/activities');
+	await expect(pre).toContainText('POST /api/notes');
+	await expect(pre).toContainText('From: Dinner');
+	await expect(pre).toContainText('Moving to Lisbon in spring');
+	await expect(pre).toContainText(`Note on ${who}`);
+});
+
+test('journal: @ mentions insert the full name and list the person', async ({ page }) => {
+	await page.goto('/log?kind=journal');
+	await page.waitForLoadState('networkidle');
+	const box = page.getByRole('textbox', { name: 'Entry', exact: true });
+	await box.click();
+	await box.pressSequentially('Climbed with @');
+	const option = page.getByRole('listbox', { name: 'Mention someone' }).getByRole('button').first();
+	const name = (await option.innerText()).trim().split('\n').pop()!.trim(); // skip the avatar initials
+	await box.pressSequentially(name.slice(0, 3));
+	await page.getByRole('listbox', { name: 'Mention someone' }).getByRole('button', { name }).click();
+	await expect(box).toHaveValue(`Climbed with @${name} `);
+	await expect(page.getByTestId('mentions')).toContainText(name);
+	await box.pressSequentially('today');
+	await expect(box).toHaveValue(`Climbed with @${name} today`);
+	// punctuation right after a mention snaps onto the name
+	await box.pressSequentially(' and @');
+	await page.getByRole('listbox', { name: 'Mention someone' }).getByRole('button').first().click();
+	await box.press('.');
+	await expect(box).toHaveValue(/@[^@]+[^ ]\.$/);
+});

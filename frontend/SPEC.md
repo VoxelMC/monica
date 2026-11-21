@@ -310,6 +310,17 @@ Built: a **Log** button in the middle of the phone tab bar (top of the sidebar o
 | Hangout | `POST /api/activities` `{summary, happened_at (Y-m-d), contacts:[ids], activity_type_id?, description?}` | One write for any number of people; shows on each timeline and updates "last activity" |
 | Journal entry | `POST /api/journal` `{title, post}` | Check on staging whether `date` is accepted (the controller mass-assigns the request) |
 
+**Per-person notes and journal mentions (requested 2026-11-21; owner chose readable text + orbit link)**
+
+- A hangout can carry a note per person ("what I learned about them"). Each becomes `POST /api/notes` `{contact_id, body}` with a first line `From: <summary> · <date>`, sent after the activity, so it shows on that person's page in orbit and in Monica.
+- In journal entries, typing `@` offers people; picking one inserts plain `@Full Name` into the text, so Monica and its old UI read normally. orbit stores which contact was meant in the extension DB, after Monica returns the entry id:
+
+| Table | Columns | Purpose |
+| --- | --- | --- |
+| `journal_mentions` | `journal_entry_id`, `monica_contact_id`, `name`, `created_at` | Exact links from a journal entry to the people mentioned; lets the contact page show "Mentioned in journal" |
+
+- A batch here is several requests (activity, then notes): stop at the first error, show which were saved, never retry one that may have reached Monica.
+
 Payloads come from `src/lib/log.ts` (`hangoutPayload`, `journalPayload`), so the preview and the real write cannot drift apart. `/log` has no form action until this slice is approved.
 
 Never allowlist `POST /api/contacts/{id}/unsetTags` (removes every tag) or `DELETE /api/tags/{id}`.
