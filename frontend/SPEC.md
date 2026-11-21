@@ -301,6 +301,17 @@ Writes, in this order, each with its own guard test and owner approval of real s
 | Merge tag A into B | `setTags` B, then `unsetTag` A, per contact | Deleting the empty tag A stays in the old UI (no DELETE) |
 | Remove tag from many | `POST /api/contacts/{id}/unsetTag` `{"tags":[tag_id]}`, one per contact | Detaches only; the tag remains |
 
+**Logging hangouts and journal entries (requested 2026-11-21; read-only parts built, saving with this slice)**
+
+Built: a **Log** button in the middle of the phone tab bar (top of the sidebar on desktop) opening `/log`; "Log a catch-up" on each contact page and "Log catch-up…" in select mode open it with those people filled in; a **Diary** page lists activities and journal entries, newest first. Save is disabled; Preview shows the exact request.
+
+| Entry | Monica call (from v4.1.2 source) | Notes |
+| --- | --- | --- |
+| Hangout | `POST /api/activities` `{summary, happened_at (Y-m-d), contacts:[ids], activity_type_id?, description?}` | One write for any number of people; shows on each timeline and updates "last activity" |
+| Journal entry | `POST /api/journal` `{title, post}` | Check on staging whether `date` is accepted (the controller mass-assigns the request) |
+
+Payloads come from `src/lib/log.ts` (`hangoutPayload`, `journalPayload`), so the preview and the real write cannot drift apart. `/log` has no form action until this slice is approved.
+
 Never allowlist `POST /api/contacts/{id}/unsetTags` (removes every tag) or `DELETE /api/tags/{id}`.
 
 Batch rules: show the exact list of contacts and the change before sending; one audit row per contact; stop at the first error and report which contacts were done; stay under Monica's rate limit (60/min) with a visible progress count; a batch never retries a write that may have reached Monica.

@@ -202,3 +202,28 @@ export const reminder = z.looseObject({
 	frequency_number: z.number().nullable().optional(),
 	initial_date: z.string()
 });
+
+// ---- Diary and logging (verified on staging 2026-11-21; activities and journal were empty)
+
+/** GET /api/activitytypes */
+export const activityType = z.looseObject({
+	id: z.number().int(),
+	name: z.string(),
+	activity_type_category: z.looseObject({ name: z.string() }).nullable().optional()
+});
+
+/** GET /api/activities (list item): includes attendees. */
+export const activityWithAttendees = activity.extend({
+	attendees: z
+		.looseObject({ total: z.number().int(), contacts: z.array(contactShort).default([]) })
+		.optional()
+});
+
+/** GET /api/journal */
+export const journalEntry = z.looseObject({
+	id: z.number().int(),
+	title: z.string().nullable(),
+	post: z.string().nullable(),
+	date: z.string().nullable().optional(),
+	created_at: z.string()
+});

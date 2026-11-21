@@ -82,3 +82,39 @@ test('select mode: select all shown, copy emails, cards do not navigate', async 
 	await page.getByRole('button', { name: 'Done' }).click();
 	await expect(bar).toBeHidden();
 });
+
+test('log: pre-filled from a contact, preview shows the payload, nothing can be saved', async ({ page }) => {
+	await page.goto('/contacts');
+	await page.getByTestId('contact-card').first().click();
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('link', { name: /Log a catch-up/ }).click();
+	await expect(page).toHaveURL(/\/log\?people=\d+/);
+	await page.waitForLoadState('networkidle');
+	await expect(page.getByTestId('picked').getByRole('button')).toHaveCount(1);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+
+	// Validation before preview
+	await page.getByRole('button', { name: 'Preview' }).click();
+	await expect(page.getByText('Say what you did')).toBeVisible();
+
+	await page.getByLabel('What did you do?').fill('Climbing at the gym');
+	await page.getByRole('button', { name: 'Preview' }).click();
+	const pre = page.getByTestId('preview');
+	await expect(pre).toContainText('POST /api/activities');
+	await expect(pre).toContainText('"summary": "Climbing at the gym"');
+	await expect(page.getByText('Nothing has been sent.')).toBeVisible();
+	await page.getByRole('button', { name: 'Back to editing' }).click();
+	await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+});
+
+test('log page has no server action (POST is refused)', async ({ request }) => {
+	const res = await request.post('/log', { form: { summary: 'x' }, headers: { origin: 'http://127.0.0.1:5173' } });
+	expect([403, 404, 405]).toContain(res.status());
+});
+
+test('diary page loads with the Log button in the nav', async ({ page }) => {
+	await page.goto('/diary');
+	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+	await expect(page.getByRole('heading', { name: 'Diary' })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Log/ }).first()).toBeVisible();
+});

@@ -229,9 +229,9 @@
 				<button type="button" class="{chip} {chipOff}" disabled={!selected.size} onclick={() => copy('phones')}>Copy phones</button>
 				<button type="button" class="{chip} {chipOff} opacity-50" disabled title="Arrives with writes (slice 4)">Add tag…</button>
 				<button type="button" class="{chip} {chipOff} opacity-50" disabled title="Arrives with writes (slice 4)">Remove tag…</button>
-				<button type="button" class="{chip} {chipOff} opacity-50" disabled title="Arrives with writes (slice 4)">Log catch-up…</button>
+				<a href="/log?people={[...selected].join(',')}" class="{chip} {chipOff}" aria-disabled={!selected.size}>Log catch-up…</a>
 			</div>
-			<p class="text-xs text-muted">Tagging and logging arrive with writes (slice 4).</p>
+			<p class="text-xs text-muted">Tagging arrives with writes (slice 4). Log catch-up opens the form with these people.</p>
 		</div>
 	</div>
 {/if}

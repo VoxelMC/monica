@@ -92,6 +92,9 @@
 			{/each}
 		</ul>
 	{/if}
+	<a href="/log?people={c.id}" class="mb-3 flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-input)] border border-accent-solid font-medium text-accent">
+		<span aria-hidden="true">+</span> Log a catch-up
+	</a>
 	{#if c.description}<p class="mb-3 whitespace-pre-line text-fg">{c.description}</p>{/if}
 
 	<div class="grid gap-3 lg:grid-cols-[1fr_20rem]">
