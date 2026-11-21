@@ -1,8 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('people list loads, search filters, no horizontal scroll', async ({ page }) => {
-	await page.goto('/');
-	await expect(page).toHaveURL(/\/contacts$/);
+	await page.goto('/contacts');
 	const cards = page.getByTestId('contact-card');
 	await expect(cards.first()).toBeVisible();
 	const total = await cards.count();
@@ -155,4 +154,11 @@ test('journal: @ mentions insert the full name and list the person', async ({ pa
 	await page.getByRole('listbox', { name: 'Mention someone' }).getByRole('button').first().click();
 	await box.press('.');
 	await expect(box).toHaveValue(/@[^@]+[^ ]\.$/);
+});
+
+test('home dashboard shows its four sections and links to Health', async ({ page }) => {
+	await page.goto('/');
+	for (const id of ['birthdays', 'catch-up', 'tasks', 'recent']) await expect(page.getByTestId(id)).toBeVisible();
+	await expect(page.getByTestId('recent').getByRole('link')).toHaveCount(5);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });

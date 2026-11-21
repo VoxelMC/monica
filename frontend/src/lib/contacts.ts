@@ -16,6 +16,11 @@ export interface ContactCard {
 	createdAt: string;
 	phones: string[];
 	emails: string[];
+	/** Calendar birthday (year null when unknown); null if none or deceased. */
+	birthday?: import('./contact').Birthday | null;
+	/** Monica's "stay in touch" target in days, if set. */
+	stayInTouchDays?: number | null;
+	updatedAt?: string;
 }
 
 export type SortKey = 'name' | 'last-contacted' | 'recent';

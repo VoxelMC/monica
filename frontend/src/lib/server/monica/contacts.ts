@@ -4,9 +4,10 @@
 //  - ?sort= only supports created_at / updated_at; other sorts happen in orbit
 //  - Photo files under /store need a web session; GET /api/contacts/{id}/photos
 //    returns them as base64 `dataUrl`
+import { parseBirthday } from '../../contact';
 import { displayName, type ContactCard } from '../../contacts';
 import type { MonicaClient } from './client';
-import { contactListItem, photo, tag, type ContactListItem } from './schemas';
+import { contactListItem, photo, tag, taskWithContact, type ContactListItem } from './schemas';
 
 const latest = (...dates: (string | null | undefined)[]) =>
 	dates.filter((d): d is string => !!d).sort().at(-1) ?? null;
@@ -27,7 +28,10 @@ export function toCard(c: ContactListItem): ContactCard {
 		lastContacted: latest(c.last_activity_together, c.last_called),
 		createdAt: c.created_at,
 		phones: fields.filter((f) => f.contact_field_type.type === 'phone').map((f) => f.content),
-		emails: fields.filter((f) => f.contact_field_type.type === 'email').map((f) => f.content)
+		emails: fields.filter((f) => f.contact_field_type.type === 'email').map((f) => f.content),
+		birthday: c.is_dead ? null : parseBirthday(c.information.dates?.birthdate),
+		stayInTouchDays: c.stay_in_touch_frequency ?? null,
+		updatedAt: c.updated_at
 	};
 }
 
@@ -61,4 +65,19 @@ export async function getAvatar(
 export async function listTagNames(client: MonicaClient): Promise<string[]> {
 	const tags = await client.getAll('/api/tags', tag);
 	return tags.map((t) => t.name);
+}
+
+/** Open tasks across all contacts (GET /api/tasks). */
+export async function listOpenTasks(client: MonicaClient) {
+	const tasks = await client.getAll('/api/tasks', taskWithContact);
+	return tasks
+		.filter((t) => !t.completed)
+		.map((t) => ({
+			id: t.id,
+			title: t.title,
+			description: t.description ?? null,
+			createdAt: t.created_at,
+			contact: t.contact && !t.contact.is_partial ? { id: t.contact.id, name: displayName(null, null, t.contact.complete_name) } : null
+		}))
+		.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

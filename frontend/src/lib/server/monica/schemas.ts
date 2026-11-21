@@ -95,10 +95,20 @@ export const contactListItem = contactSummary.extend({
 			url: z.string().nullable(),
 			source: z.string().nullable(),
 			default_avatar_color: z.string().nullable().optional()
-		})
+		}),
+		dates: z
+			.looseObject({
+				birthdate: z
+					.looseObject({ is_age_based: z.boolean().nullable().optional(), is_year_unknown: z.boolean().nullable().optional(), date: z.string().nullable().optional() })
+					.optional()
+			})
+			.optional()
 	}),
 	last_called: looseDate,
 	last_activity_together: looseDate,
+	is_dead: z.boolean().optional(),
+	stay_in_touch_frequency: z.number().int().nullable().optional(),
+	stay_in_touch_trigger_date: looseDate,
 	created_at: z.string(),
 	contactFields: z.array(contactField).optional()
 });
@@ -227,3 +237,6 @@ export const journalEntry = z.looseObject({
 	date: z.string().nullable().optional(),
 	created_at: z.string()
 });
+
+/** GET /api/tasks (list item, across all contacts). */
+export const taskWithContact = task.extend({ contact: contactShort.nullable().optional() });
