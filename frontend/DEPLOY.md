@@ -61,10 +61,13 @@ orbit.trevfox.dev {
 7. Porkbun DNS: `A` record `orbit` → `100.69.133.121`.
 
 ```bash
-# 8. Build and start orbit only, then reload Caddy
+# 8. Build and start orbit only, then restart Caddy
 cd ~/repos/monica
 docker compose up -d --build orbit
-docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+# The Caddyfile is bind-mounted as a single file; editors like vim save a new file,
+# so the container keeps the old one until Caddy restarts (Monica blips for seconds).
+docker compose restart caddy
+docker compose exec caddy grep -c orbit /etc/caddy/Caddyfile   # must be 1, not 0
 
 # 9. Check: should print 200
 docker compose exec orbit node -e "fetch('http://127.0.0.1:3000/health').then(r=>console.log(r.status))"
