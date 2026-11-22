@@ -306,3 +306,19 @@ test('contact page: notes have their own section, separate from the timeline', a
 	await expect(page.getByRole('heading', { name: /^Notes/ })).toBeVisible();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });
+
+test('remove: confirmation is required, shows what goes, and read-only refuses it', async ({ page }) => {
+	await page.goto('/contacts/7');
+	await page.waitForLoadState('networkidle');
+	await page.getByTestId('notes').getByRole('button', { name: 'Remove…' }).first().click();
+	const dialog = page.getByRole('dialog');
+	await expect(dialog.getByRole('heading', { name: 'Remove this note?' })).toBeVisible();
+	await expect(dialog.getByTestId('remove-details')).not.toBeEmpty();
+	const go = dialog.getByRole('button', { name: 'Remove permanently' });
+	await expect(go).toBeDisabled();
+	await dialog.getByLabel(/I understand this removes the note/).check();
+	await expect(go).toBeEnabled();
+	await go.click();
+	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
+	await expect(page.getByTestId('notes')).toBeVisible(); // still there
+});

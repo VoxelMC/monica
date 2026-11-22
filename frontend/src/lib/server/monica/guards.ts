@@ -1,5 +1,7 @@
 // Every write to Monica goes through this module. Rules (SPEC "Write guards"):
-//  1. DELETE is never sent.
+//  1. DELETE only for hangouts, notes and journal entries (owner decision 2026-11-23):
+//     allowlisted path, full record saved to the audit log first, conflict check.
+//     The transport refuses every other DELETE, and contacts can never be deleted.
 //  2. Read-only switch: ORBIT_READ_ONLY=true refuses every write (it wins over dry run).
 //  3. Allowlist: only method + path patterns listed in WRITE_ALLOWLIST are allowed,
 //     and only the fields each rule lists may be changed.
@@ -12,14 +14,17 @@
 
 import type { AuditLog } from '../audit';
 import { assertApiPath, type Transport } from './client';
+import { DELETE_CAPABILITY } from './delete-capability';
 import { ConflictError, WriteRefusedError } from './errors';
+
+export { DELETE_CAPABILITY };
 
 type Json = Record<string, unknown>;
 
 export interface WriteRule {
 	/** Stable name used by callers, e.g. 'contact.update'. */
 	key: string;
-	method: 'POST' | 'PUT';
+	method: 'POST' | 'PUT' | 'DELETE';
 	/** Path template with a single {id} for PUT rules, e.g. '/api/notes/{id}'. */
 	path: string;
 	/** Fields a caller may set. Anything else is refused. */
@@ -48,7 +53,11 @@ export const WRITE_ALLOWLIST: readonly WriteRule[] = [
 		editableFields: ['summary', 'description', 'happened_at', 'activity_type_id', 'contacts']
 	},
 	// ...plus an optional note on each person's page ("what I learned about them")
-	{ key: 'note.create', method: 'POST', path: '/api/notes', editableFields: ['contact_id', 'body'] }
+	{ key: 'note.create', method: 'POST', path: '/api/notes', editableFields: ['contact_id', 'body'] },
+	// Removing (owner decision 2026-11-23): confirmed in the UI, record saved to the audit log first
+	{ key: 'activity.delete', method: 'DELETE', path: '/api/activities/{id}', editableFields: [] },
+	{ key: 'note.delete', method: 'DELETE', path: '/api/notes/{id}', editableFields: [] },
+	{ key: 'journal.delete', method: 'DELETE', path: '/api/journal/{id}', editableFields: [] }
 ];
 
 export interface GuardOptions {
@@ -73,6 +82,8 @@ export interface WriteResult {
 export interface Guards {
 	create(key: string, body: Json): Promise<WriteResult>;
 	update(key: string, id: number, changes: Json, expectedUpdatedAt: string): Promise<WriteResult>;
+	/** Remove one allowlisted record; the full record is saved to the audit log first. */
+	remove(key: string, id: number, expectedUpdatedAt: string): Promise<WriteResult>;
 }
 
 /** Check a method and path against the read-only switch and allowlist. Throws if refused. */
@@ -82,13 +93,13 @@ export function checkWrite(
 	opts: { readOnly: boolean; allowlist: readonly WriteRule[] }
 ): WriteRule {
 	const m = method.toUpperCase();
-	if (m === 'DELETE') throw new WriteRefusedError('delete-forbidden', 'DELETE requests to Monica are never sent');
 	if (m === 'GET') throw new WriteRefusedError('not-allowlisted', 'GET is not a write');
 	if (opts.readOnly) {
 		throw new WriteRefusedError('read-only', `orbit is read-only (ORBIT_READ_ONLY=true): ${m} ${path} refused`);
 	}
 	assertApiPath(path);
 	const rule = opts.allowlist.find((r) => r.method === m && matchPath(r.path, path));
+	if (!rule && m === 'DELETE') throw new WriteRefusedError('delete-forbidden', `orbit does not delete ${path}`);
 	if (!rule) throw new WriteRefusedError('not-allowlisted', `${m} ${path} is not on the write allowlist`);
 	return rule;
 }
@@ -133,7 +144,7 @@ export function createGuards(opts: GuardOptions): Guards {
 	 * Find the rule and run every pre-send check (read-only, allowlist, fields).
 	 * Refusals are written to the audit log, then rethrown.
 	 */
-	function precheck(method: 'POST' | 'PUT', key: string, id: number | null, fields: Json) {
+	function precheck(method: 'POST' | 'PUT' | 'DELETE', key: string, id: number | null, fields: Json) {
 		const rule = allowlist.find((r) => r.key === key && r.method === method);
 		const path = rule ? rule.path.replace('{id}', String(id)) : `(no rule "${key}")`;
 		guarded(method, path, id, () => {
@@ -198,6 +209,35 @@ export function createGuards(opts: GuardOptions): Guards {
 			// Merge: full payload from the current record, then only the edited fields.
 			const payload = { ...rule.toPayload!(current), ...changes };
 			return send('PUT', path, id, current, payload);
+		},
+
+		async remove(key, id, expectedUpdatedAt) {
+			if (!Number.isInteger(id) || id <= 0) throw new WriteRefusedError('bad-path', `Invalid id ${id}`);
+			const { rule, path } = precheck('DELETE', key, id, {});
+
+			// Read the record first: it must exist, must not have changed, and a full
+			// copy goes into the audit log so it can be recreated by hand.
+			const readPath = (rule.readPath ?? rule.path).replace('{id}', String(id));
+			const current = unwrap(await transport.request('GET', readPath));
+			if (current.updated_at !== expectedUpdatedAt) {
+				audit.start({ method: 'DELETE', endpoint: path, monicaId: id, before: current, dryRun: opts.dryRun, result: 'conflict' });
+				throw new ConflictError(path, expectedUpdatedAt, current.updated_at);
+			}
+			if (opts.dryRun) {
+				const auditId = audit.start({ method: 'DELETE', endpoint: path, monicaId: id, before: current, dryRun: true, result: 'dry-run' });
+				return { auditId, dryRun: true, payload: {}, response: null };
+			}
+			const auditId = audit.start({ method: 'DELETE', endpoint: path, monicaId: id, before: current, dryRun: false, result: 'pending' });
+			let response: unknown;
+			try {
+				response = await transport.request('DELETE', path, { deleteCapability: DELETE_CAPABILITY });
+			} catch (err) {
+				audit.finish(auditId, `error:${(err as Error).message}`);
+				throw err;
+			}
+			audit.finish(auditId, 'ok', response);
+			opts.onWrite?.();
+			return { auditId, dryRun: false, payload: {}, response };
 		}
 	};
 }

@@ -56,7 +56,7 @@ No step of this project may lose, overwrite or corrupt existing Monica data; eve
 | Rule | Why |
 | --- | --- |
 | **Fetch, merge, then send.** Every update first GETs the current record, changes only the fields being edited, then sends the whole object back. | Monica 4's `PUT` endpoints replace the record. Sending a partial object can blank fields that were left out. |
-| **No DELETE calls** in v1 (except the merge feature in the backlog, behind confirmation). Deleting stays in the old Monica UI. | A bug cannot destroy anything. |
+| **Narrow, confirmed deletes only.** Hangouts, notes and journal entries can be removed (owner decision 2026-11-23); contacts and everything else cannot. The transport refuses any other DELETE path even if asked; each removal is confirmed in the UI and the full record is saved to the audit log first. | A bug cannot remove contacts; anything removed can be recreated from the audit log. |
 | **Allowlist of write endpoints.** The backend only forwards writes to endpoints explicitly listed in code. | No accidental writes through a generic proxy. |
 | **Audit log.** Every write is recorded (time, endpoint, before JSON, after JSON) in the extension database. | Any change can be inspected and reversed by hand. |
 | **Dry-run mode.** `ORBIT_DRY_RUN=true` logs what would be sent without sending it. | Check new write code safely. |
@@ -310,6 +310,12 @@ Writes, in this order, each with its own guard test and owner approval of real s
 | Rename a tag | `PUT /api/tags/{id}` `{"name":…}` | One write; contacts keep the tag |
 | Merge tag A into B | `setTags` B, then `unsetTag` A, per contact | Deleting the empty tag A stays in the old UI (no DELETE) |
 | Remove tag from many | `POST /api/contacts/{id}/unsetTag` `{"tags":[tag_id]}`, one per contact | Detaches only; the tag remains |
+
+**Removing hangouts, notes and journal entries (owner decision 2026-11-23)**
+
+- `DELETE /api/activities/{id}`, `/api/notes/{id}`, `/api/journal/{id}`; never contacts or anything else. The transport refuses any other DELETE path and any DELETE not issued by `guards.remove`.
+- Each removal: confirmation dialog (what goes, consequences, a tick to unlock the button; the server re-checks the tick), fresh GET with the full record saved to the audit log, conflict check on `updated_at`, then DELETE.
+- Staging run 2026-11-23: removed note #2 and activity #1 (the slice 4 test data), audit rows #25-#26; contacts 7 and 8 and note #1 untouched. Awaiting owner approval.
 
 **Logging hangouts and journal entries (requested 2026-11-21; read-only parts built, saving with this slice)**
 

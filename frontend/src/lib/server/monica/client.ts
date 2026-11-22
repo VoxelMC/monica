@@ -14,9 +14,10 @@ import {
 	MonicaValidationError,
 	WriteRefusedError
 } from './errors';
+import { DELETABLE_PATH, DELETE_CAPABILITY } from './delete-capability';
 import { paginated, type paginationMeta } from './schemas';
 
-export type Method = 'GET' | 'POST' | 'PUT';
+export type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 export type Query = Record<string, string | number | boolean | undefined>;
 
 export interface TransportOptions {
@@ -38,7 +39,7 @@ export interface TransportOptions {
 }
 
 export interface Transport {
-	request(method: Method, path: string, opts?: { query?: Query; body?: unknown }): Promise<unknown>;
+	request(method: Method, path: string, opts?: { query?: Query; body?: unknown; deleteCapability?: symbol }): Promise<unknown>;
 	readonly readOnly: boolean;
 }
 
@@ -109,12 +110,15 @@ export function createTransport(opts: TransportOptions): Transport {
 	const baseUrl = opts.baseUrl;
 	const token = opts.token;
 
-	async function request(method: Method, path: string, ro: { query?: Query; body?: unknown } = {}) {
+	async function request(method: Method, path: string, ro: { query?: Query; body?: unknown; deleteCapability?: symbol } = {}) {
 		// Defence in depth: these are also checked in guards.ts.
 		if ((method as string).toUpperCase() === 'DELETE') {
-			throw new WriteRefusedError('delete-forbidden', 'DELETE requests to Monica are never sent');
+			// Only from the guards, and only hangouts, notes and journal entries.
+			if (method !== 'DELETE' || ro.deleteCapability !== DELETE_CAPABILITY || !DELETABLE_PATH.test(path)) {
+				throw new WriteRefusedError('delete-forbidden', `orbit does not delete ${path} (only hangouts, notes and journal entries, through the guards)`);
+			}
 		}
-		if (method !== 'GET' && method !== 'POST' && method !== 'PUT') {
+		if (method !== 'GET' && method !== 'POST' && method !== 'PUT' && method !== 'DELETE') {
 			throw new WriteRefusedError('not-allowlisted', `HTTP method ${method} is not allowed`);
 		}
 		if (method !== 'GET' && opts.readOnly) {

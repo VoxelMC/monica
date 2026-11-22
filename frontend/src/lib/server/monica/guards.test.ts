@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { recentAudit } from '../audit';
 import { createTransport, type Method } from './client';
 import { ConflictError, WriteRefusedError } from './errors';
-import { checkWrite, createGuards, WRITE_ALLOWLIST, type WriteRule } from './guards';
+import { checkWrite, createGuards, DELETE_CAPABILITY, WRITE_ALLOWLIST, type WriteRule } from './guards';
 import { fakeClock, fakeFetch, memoryAudit } from './test-helpers';
 
 const BASE = 'http://127.0.0.1:8081';
@@ -85,19 +85,95 @@ describe('read-only switch (slice 0 done-when)', () => {
 	});
 });
 
-describe('DELETE', () => {
-	it('is always refused, even when not read-only', async () => {
+describe('DELETE (owner decision 2026-11-23: hangouts, notes, journal entries only)', () => {
+	it('the transport refuses any DELETE that does not come from the guards', async () => {
 		const { transport, calls } = setup({ readOnly: false });
-		await expect(transport.request('DELETE' as Method, '/api/contacts/1')).rejects.toMatchObject({ reason: 'delete-forbidden' });
-		expect(() => checkWrite('DELETE', '/api/notes', { readOnly: false, allowlist: RULES })).toThrow(/never sent/);
+		await expect(transport.request('DELETE' as Method, '/api/notes/1')).rejects.toMatchObject({ reason: 'delete-forbidden' });
+		expect(calls).toHaveLength(0);
+	});
+
+	it('even with the guards\' capability, the transport refuses contacts and any other path', async () => {
+		const { transport, calls } = setup({ readOnly: false });
+		for (const path of ['/api/contacts/1', '/api/contactfields/3', '/api/tags/2', '/api/notes', '/api/notes/1/extra', '/api/reminders/4']) {
+			await expect(transport.request('DELETE' as Method, path, { deleteCapability: DELETE_CAPABILITY })).rejects.toMatchObject({ reason: 'delete-forbidden' });
+		}
+		expect(calls).toHaveLength(0);
+	});
+
+	it('read-only refuses deletes too', async () => {
+		const { transport, calls } = setup({ readOnly: true });
+		await expect(transport.request('DELETE' as Method, '/api/notes/1', { deleteCapability: DELETE_CAPABILITY })).rejects.toMatchObject({ reason: 'read-only' });
+		expect(calls).toHaveLength(0);
+	});
+
+	it('checkWrite refuses DELETE unless that exact path is allowlisted', () => {
+		expect(() => checkWrite('DELETE', '/api/notes/1', { readOnly: false, allowlist: RULES })).toThrow(WriteRefusedError);
+		expect(() => checkWrite('DELETE', '/api/contacts/1', { readOnly: false, allowlist: WRITE_ALLOWLIST })).toThrow(WriteRefusedError);
+		expect(checkWrite('DELETE', '/api/notes/12', { readOnly: false, allowlist: WRITE_ALLOWLIST }).key).toBe('note.delete');
+	});
+});
+
+describe('remove (real allowlist)', () => {
+	const NOTE = { data: { id: 12, object: 'note', body: 'Likes tea', contact: { id: 7 }, updated_at: '2026-11-20T10:00:00Z' } };
+	const ok = (opts: { readOnly?: boolean; dryRun?: boolean; replies?: Parameters<typeof fakeFetch>[0] } = {}) =>
+		setup({ readOnly: opts.readOnly ?? false, dryRun: opts.dryRun, allowlist: [...WRITE_ALLOWLIST], replies: opts.replies ?? [{ body: NOTE }, { body: { deleted: true, id: 12 } }] });
+
+	it('reads the record, saves it to the audit log, then deletes it once', async () => {
+		const { guards, calls, rows } = ok();
+		const res = await guards.remove('note.delete', 12, NOTE.data.updated_at);
+		expect(calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual(['GET /api/notes/12', 'DELETE /api/notes/12']);
+		expect(res.dryRun).toBe(false);
+		const [row] = rows();
+		expect(row).toMatchObject({ method: 'DELETE', endpoint: '/api/notes/12', monicaId: 12, result: 'ok' });
+		expect(JSON.parse(row.beforeJson!)).toEqual(NOTE.data); // full copy, to recreate by hand if needed
+	});
+
+	it('read-only: nothing is read or sent, the refusal is logged', async () => {
+		const { guards, calls, rows } = ok({ readOnly: true });
+		await expect(guards.remove('note.delete', 12, 'x')).rejects.toMatchObject({ reason: 'read-only' });
+		expect(calls).toHaveLength(0);
+		expect(rows()[0].result).toBe('refused:read-only');
+	});
+
+	it('stops if the record changed since it was shown (conflict), and deletes nothing', async () => {
+		const { guards, calls, rows } = ok();
+		await expect(guards.remove('note.delete', 12, '2026-11-19T00:00:00Z')).rejects.toBeInstanceOf(ConflictError);
+		expect(calls.map((c) => c.method)).toEqual(['GET']);
+		expect(rows()[0].result).toBe('conflict');
+	});
+
+	it('dry run: reads and logs, sends no DELETE', async () => {
+		const { guards, calls, rows } = ok({ dryRun: true });
+		const res = await guards.remove('note.delete', 12, NOTE.data.updated_at);
+		expect(res.dryRun).toBe(true);
+		expect(calls.map((c) => c.method)).toEqual(['GET']);
+		expect(rows()[0].result).toBe('dry-run');
+	});
+
+	it('already gone (404 on read): nothing is deleted', async () => {
+		const { guards, calls } = ok({ replies: [{ status: 404 }] });
+		await expect(guards.remove('note.delete', 12, 'x')).rejects.toThrow(/404/);
+		expect(calls.map((c) => c.method)).toEqual(['GET']);
+	});
+
+	it('contacts can never be removed, whatever key is asked for', async () => {
+		const { guards, calls } = ok();
+		await expect(guards.remove('contact.delete', 7, 'x')).rejects.toMatchObject({ reason: 'not-allowlisted' });
 		expect(calls).toHaveLength(0);
 	});
 });
 
 describe('allowlist', () => {
-	it('contains only the approved creates (slice 4: log hangouts) and nothing that updates or deletes', () => {
-		expect(WRITE_ALLOWLIST.map((r) => `${r.method} ${r.path}`).sort()).toEqual(['POST /api/activities', 'POST /api/notes']);
-		expect(WRITE_ALLOWLIST.every((r) => r.method === 'POST')).toBe(true);
+	it('contains exactly the approved writes: creating and removing hangouts, notes and journal entries', () => {
+		expect(WRITE_ALLOWLIST.map((r) => `${r.method} ${r.path}`).sort()).toEqual([
+			'DELETE /api/activities/{id}',
+			'DELETE /api/journal/{id}',
+			'DELETE /api/notes/{id}',
+			'POST /api/activities',
+			'POST /api/notes'
+		]);
+		expect(WRITE_ALLOWLIST.some((r) => r.method === 'PUT')).toBe(false);
+		expect(WRITE_ALLOWLIST.some((r) => r.path.includes('contacts'))).toBe(false);
 	});
 
 	it('real rules: activity and note fields are limited to what the Log form sends', () => {
@@ -134,11 +210,11 @@ describe('allowlist', () => {
 		expect(calls).toHaveLength(0);
 	});
 
-	it('updates and deletes are still impossible with the real allowlist', async () => {
+	it('updates are still impossible, and so is deleting a contact', async () => {
 		const { guards, transport, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST] });
 		await expect(guards.update('contact.update', 1, {}, 'x')).rejects.toMatchObject({ reason: 'not-allowlisted' });
 		expect(() => checkWrite('PUT', '/api/contacts/1', { readOnly: false, allowlist: WRITE_ALLOWLIST })).toThrow(/not on the write allowlist/);
-		await expect(transport.request('DELETE' as Method, '/api/notes/1')).rejects.toMatchObject({ reason: 'delete-forbidden' });
+		await expect(transport.request('DELETE' as Method, '/api/contacts/1', { deleteCapability: DELETE_CAPABILITY })).rejects.toMatchObject({ reason: 'delete-forbidden' });
 		expect(calls).toHaveLength(0);
 	});
 

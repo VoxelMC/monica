@@ -1,10 +1,14 @@
 <script lang="ts">
+	import ConfirmRemove from '#lib/components/ConfirmRemove.svelte';
 	import { fullDate, relativeDate } from '#lib/contacts.js';
+	import type { DiaryItem } from '#lib/log.js';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 	let filter = $state<'all' | 'hangout' | 'journal'>('all');
 	const shown = $derived(filter === 'all' ? data.items : data.items.filter((i) => i.kind === filter));
+	let removing = $state<DiaryItem | null>(null);
+	let notice = $state<{ ok: boolean; message: string } | null>(null);
 	const chip = 'inline-flex min-h-9 items-center rounded-[var(--radius-chip)] border px-3 text-sm';
 </script>
 
@@ -26,6 +30,12 @@
 		{/each}
 	</div>
 
+	{#if notice}
+		<p class="mb-3 rounded-[var(--radius-card)] border p-3 text-sm {notice.ok ? 'border-accent-solid bg-accent-soft text-on-accent-soft' : 'border-attention text-attention'}" role="status" data-testid="remove-notice">
+			{notice.message} <a class="underline" href="/audit">Audit log</a>
+		</p>
+	{/if}
+
 	{#if shown.length}
 		<ol class="flex flex-col gap-2" data-testid="diary">
 			{#each shown as item (item.kind + item.id)}
@@ -41,10 +51,10 @@
 						</p>
 					{/if}
 					{#if item.body}<p class="mt-2 text-sm break-words whitespace-pre-line">{item.body}</p>{/if}
+					<div class="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
 					{#if data.monicaUrl}
-						<!-- orbit never deletes; edit or remove entries in Monica -->
-						<p class="mt-2 text-xs text-muted">
-							Edit or remove in Monica:
+						<p class="text-xs text-muted">
+							Edit in Monica:
 							{#if item.kind === 'journal'}
 								<a class="underline underline-offset-2" href="{data.monicaUrl}/journal" target="_blank" rel="noopener noreferrer">Journal ↗</a>
 							{:else}
@@ -52,6 +62,10 @@
 							{/if}
 						</p>
 					{/if}
+					{#if item.updatedAt}
+						<button type="button" class="ml-auto text-xs text-attention underline-offset-2 hover:underline" onclick={() => ((removing = item), (notice = null))}>Remove…</button>
+					{/if}
+					</div>
 				</li>
 			{/each}
 		</ol>
@@ -62,3 +76,16 @@
 		</div>
 	{/if}
 </div>
+
+{#if removing}
+	<ConfirmRemove
+		kind={removing.kind === 'journal' ? 'journal' : 'activity'}
+		id={removing.id}
+		updatedAt={removing.updatedAt ?? ''}
+		title={removing.title}
+		details={[fullDate(removing.date), removing.people.map((p) => p.name).join(', '), removing.body ?? '']}
+		warning={removing.kind === 'hangout' && removing.people.length > 1 ? `It disappears for all ${removing.people.length} people who were there. Notes written about them stay.` : removing.kind === 'hangout' ? 'Notes written about them stay.' : ''}
+		onclose={() => (removing = null)}
+		ondone={(r) => ((notice = r), (removing = null))}
+	/>
+{/if}

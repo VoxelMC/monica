@@ -1,6 +1,8 @@
 <script lang="ts">
 	import Avatar from '#lib/components/Avatar.svelte';
+	import ConfirmRemove from '#lib/components/ConfirmRemove.svelte';
 	import Tag from '#lib/components/Tag.svelte';
+	import type { TimelineItem } from '#lib/contact.js';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { fullDate, relativeDate } from '#lib/contacts.js';
 	import type { PageProps } from './$types';
@@ -24,6 +26,8 @@
 	const EVENTS_SHOWN = 10;
 	const NOTES_SHOWN = 5;
 	const expanded = new SvelteSet<number>();
+	let removing = $state<TimelineItem | null>(null);
+	let notice = $state<{ ok: boolean; message: string } | null>(null);
 	// A new contact page (e.g. via a relationship link) starts fresh
 	$effect(() => {
 		void c.id;
@@ -139,6 +143,12 @@
 				{@render card('Contact', fieldsBody)}
 			{/if}
 
+			{#if notice}
+				<p class="rounded-[var(--radius-card)] border p-3 text-sm {notice.ok ? 'border-accent-solid bg-accent-soft text-on-accent-soft' : 'border-attention text-attention'}" role="status" data-testid="remove-notice">
+					{notice.message} <a class="underline" href="/audit">Audit log</a>
+				</p>
+			{/if}
+
 			<!-- Reminders: open and first, so they are seen without a tap -->
 			{#if c.reminders.length}
 				<section class="rounded-[var(--radius-card)] border border-line bg-surface p-4" aria-labelledby="reminders-h" data-testid="reminders">
@@ -192,7 +202,10 @@
 										<span class="font-medium">{item.title}</span>
 										{#if item.title !== kindLabel[item.kind]}<span class="text-muted"> · {kindLabel[item.kind]}</span>{/if}
 									</p>
-									<p class="text-xs text-muted"><time datetime={item.date} title={fullDate(item.date)}>{relativeDate(item.date)}</time></p>
+									<p class="text-xs text-muted">
+										<time datetime={item.date} title={fullDate(item.date)}>{relativeDate(item.date)}</time>
+										{#if item.kind === 'activity' && item.updatedAt}· <button type="button" class="text-attention underline-offset-2 hover:underline" onclick={() => ((removing = item), (notice = null))}>Remove…</button>{/if}
+									</p>
 									{#if item.body}<p class="mt-1 text-sm break-words whitespace-pre-line text-fg">{item.body}</p>{/if}
 								</div>
 							</li>
@@ -216,7 +229,10 @@
 						{#each showAllNotes ? notes : notes.slice(0, NOTES_SHOWN) as n (n.id)}
 							{@const long = (n.body ?? '').length > 280 || (n.body ?? '').split('\n').length > 5}
 							<li class="py-3 first:pt-0 last:pb-0">
-								<p class="mb-1 text-xs text-muted"><time datetime={n.date} title={fullDate(n.date)}>{relativeDate(n.date)}</time></p>
+								<p class="mb-1 text-xs text-muted">
+									<time datetime={n.date} title={fullDate(n.date)}>{relativeDate(n.date)}</time>
+									{#if n.updatedAt}· <button type="button" class="text-attention underline-offset-2 hover:underline" onclick={() => ((removing = n), (notice = null))}>Remove…</button>{/if}
+								</p>
 								<p class="text-sm break-words whitespace-pre-line {long && !expanded.has(n.id) ? 'line-clamp-4' : ''}">{n.body}</p>
 								{#if long}
 									<button type="button" class="mt-1 text-sm text-accent" onclick={() => (expanded.has(n.id) ? expanded.delete(n.id) : expanded.add(n.id))}>
@@ -300,3 +316,16 @@
 		</aside>
 	</div>
 </div>
+
+{#if removing}
+	<ConfirmRemove
+		kind={removing.kind === 'note' ? 'note' : 'activity'}
+		id={removing.id}
+		updatedAt={removing.updatedAt ?? ''}
+		title={removing.kind === 'note' ? `Note on ${c.name}’s page` : removing.title}
+		details={[fullDate(removing.date), removing.body ?? '']}
+		warning={removing.kind === 'activity' ? 'It disappears for everyone who was there. Notes written about them stay.' : ''}
+		onclose={() => (removing = null)}
+		ondone={(r) => ((notice = r), (removing = null))}
+	/>
+{/if}

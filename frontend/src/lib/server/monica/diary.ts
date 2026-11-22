@@ -17,7 +17,8 @@ export async function loadDiary(client: MonicaClient): Promise<DiaryItem[]> {
 			title: a.summary || a.activity_type?.name || 'Hangout',
 			body: a.description ?? null,
 			type: a.activity_type?.name ?? null,
-			people: (a.attendees?.contacts ?? []).map((c) => ({ id: c.id, name: displayName(c.first_name ?? null, c.last_name ?? null, c.complete_name), hashId: c.hash_id ?? null }))
+			people: (a.attendees?.contacts ?? []).map((c) => ({ id: c.id, name: displayName(c.first_name ?? null, c.last_name ?? null, c.complete_name), hashId: c.hash_id ?? null })),
+			updatedAt: a.updated_at
 		})),
 		...entries.map((e) => ({
 			kind: 'journal' as const,
@@ -26,7 +27,8 @@ export async function loadDiary(client: MonicaClient): Promise<DiaryItem[]> {
 			title: e.title || 'Journal entry',
 			body: e.post ?? null,
 			type: null,
-			people: []
+			people: [],
+			updatedAt: e.updated_at
 		}))
 	];
 	return items.sort((a, b) => b.date.slice(0, 10).localeCompare(a.date.slice(0, 10)) || b.id - a.id);

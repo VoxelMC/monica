@@ -1,8 +1,9 @@
-import { error } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
+import { removeEntry } from '#lib/server/remove-entry.js';
 import { loadDiary } from '#lib/server/monica/diary.js';
-import { monica, settings } from '#lib/server/monica/index.js';
+import { getGuards, monica, settings } from '#lib/server/monica/index.js';
 import { loadErrorMessage } from '#lib/server/monica/errors.js';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ setHeaders }) => {
 	try {
@@ -13,5 +14,13 @@ export const load: PageServerLoad = async ({ setHeaders }) => {
 	} catch (err) {
 		console.error('diary failed:', err instanceof Error ? err.message : err);
 		error(502, loadErrorMessage(err, 'the diary'));
+	}
+};
+
+export const actions: Actions = {
+	// Remove a hangout, note or journal entry (confirmed in the UI; see remove-entry.ts)
+	remove: async ({ request }) => {
+		const result = await removeEntry(getGuards(), await request.formData());
+		return result.ok ? result : fail(400, result);
 	}
 };

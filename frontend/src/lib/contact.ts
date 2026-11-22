@@ -67,6 +67,8 @@ export interface TimelineItem {
 	date: string; // ISO date or timestamp
 	title: string;
 	body: string | null;
+	/** Monica's updated_at, for the conflict check when removing. */
+	updatedAt?: string;
 }
 
 /** Newest first; ties keep a stable order by kind then id. */

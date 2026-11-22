@@ -17,7 +17,10 @@ The owner's data must never be lost, overwritten or corrupted.
 - Work only inside frontend/. Never edit Monica's PHP, migrations, database/ or config.
 - Never connect to the production Monica. Use MONICA_URL from .env.development (staging).
 - Never run SQL against Monica's database. Use the REST API only.
-- Never send DELETE requests to Monica (the only future exception is the merge feature in the backlog, which needs explicit owner confirmation per merge).
+- DELETE requests to Monica only for hangouts (activities), notes and journal entries, never contacts or anything else
+  (owner decision 2026-11-23). Each removal: a confirmation screen in the UI, the full record saved to the audit log
+  first, conflict check, and the DELETE path must be on the allowlist. The merge feature in the backlog stays a
+  separate decision with explicit owner confirmation per merge.
 - All Monica writes go through lib/server/monica/guards.ts:
   read-only switch, allowlist, fetch-merge-send, conflict check, audit log.
 - Never add a generic proxy that forwards arbitrary requests to Monica.

@@ -81,13 +81,14 @@ export async function loadContactPage(client: MonicaClient, id: number, today = 
 	});
 
 	const timeline: TimelineItem[] = [
-		...notes.map((n) => ({ kind: 'note' as const, id: n.id, date: n.created_at, title: 'Note', body: n.body })),
+		...notes.map((n) => ({ kind: 'note' as const, id: n.id, date: n.created_at, title: 'Note', body: n.body, updatedAt: n.updated_at })),
 		...activities.map((a) => ({
 			kind: 'activity' as const,
 			id: a.id,
 			date: a.happened_at,
 			title: a.summary || a.activity_type?.name || 'Activity',
-			body: a.description ?? null
+			body: a.description ?? null,
+			updatedAt: a.updated_at
 		})),
 		...calls.map((c) => ({
 			kind: 'call' as const,

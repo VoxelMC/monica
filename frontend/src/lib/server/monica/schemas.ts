@@ -184,13 +184,14 @@ export const contactDetail = contactListItem.extend({
 });
 export type ContactDetail = z.infer<typeof contactDetail>;
 
-export const note = z.looseObject({ id: z.number().int(), body: z.string(), is_favorited: z.boolean().optional(), created_at: z.string() });
+export const note = z.looseObject({ id: z.number().int(), body: z.string(), is_favorited: z.boolean().optional(), created_at: z.string(), updated_at: z.string().optional() });
 export const activity = z.looseObject({
 	id: z.number().int(),
 	summary: nstr,
 	description: nstr,
 	happened_at: z.string(),
-	activity_type: z.looseObject({ name: nstr }).nullable().optional()
+	activity_type: z.looseObject({ name: nstr }).nullable().optional(),
+	updated_at: z.string().optional()
 });
 export const call = z.looseObject({ id: z.number().int(), called_at: z.string(), content: nstr, contact_called: z.boolean().nullable().optional() });
 export const conversation = z.looseObject({
@@ -240,7 +241,8 @@ export const journalEntry = z.looseObject({
 	title: z.string().nullable(),
 	post: z.string().nullable(),
 	date: z.string().nullable().optional(),
-	created_at: z.string()
+	created_at: z.string(),
+	updated_at: z.string().optional()
 });
 
 /** GET /api/tasks (list item, across all contacts). */

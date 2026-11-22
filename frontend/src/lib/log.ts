@@ -16,6 +16,8 @@ export interface DiaryItem {
 	body: string | null;
 	type: string | null;
 	people: { id: number; name: string; hashId?: string | null }[];
+	/** Monica's updated_at, for the conflict check when removing. */
+	updatedAt?: string;
 }
 
 export interface HangoutDraft {
