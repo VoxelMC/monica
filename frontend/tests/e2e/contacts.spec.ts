@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test('people list loads, search filters, no horizontal scroll', async ({ page }) => {
 	await page.goto('/contacts');
+	await page.waitForLoadState('networkidle'); // search filtering needs JS
 	const cards = page.getByTestId('contact-card');
 	await expect(cards.first()).toBeVisible();
 	const total = await cards.count();
@@ -251,4 +252,40 @@ test('people view stays current after navigating away and back', async ({ page }
 	await page.locator('a[href="/contacts"]:visible').first().click();
 	await page.waitForURL(/\/contacts$/);
 	await expect(page.getByRole('button', { name: 'Lines' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('birthdays: Home card has clear sections and links to the birthdays page', async ({ page }) => {
+	await page.goto('/');
+	const card = page.getByTestId('birthdays');
+	await expect(card.getByRole('heading', { name: 'Next 30 days' })).toBeVisible();
+	await card.getByRole('link', { name: /All birthdays/ }).click();
+	await expect(page).toHaveURL(/\/birthdays$/);
+	await expect(page.getByRole('heading', { name: 'The year ahead' })).toBeVisible();
+});
+
+test('birthdays: quick entry validates, previews the exact request, cannot save', async ({ page }) => {
+	await page.goto('/birthdays');
+	await page.waitForLoadState('networkidle');
+	const row = page.getByTestId('missing').locator('li').first();
+	const name = (await row.locator('a span.truncate').innerText()).trim();
+	await row.getByLabel(`Month for ${name}`).selectOption('2');
+	await row.getByLabel(`Day for ${name}`).selectOption('29');
+	await row.getByLabel(`Year for ${name} (optional)`).fill('2001');
+	await expect(row).toContainText('does not exist');
+	await row.getByLabel(`Year for ${name} (optional)`).fill('2000');
+	await expect(row).toContainText('Ready');
+	await page.getByTestId('birthday-bar').getByRole('button', { name: 'Preview' }).click();
+	const pre = page.getByTestId('preview');
+	await expect(pre).toContainText('PUT /api/contacts/');
+	await expect(pre).toContainText('"birthdate_month": 2');
+	await expect(pre).toContainText('"birthdate_day": 29');
+	await expect(pre).not.toContainText('last_name');
+	await page.getByRole('button', { name: 'Back' }).click();
+	await expect(page.getByTestId('birthday-bar').getByRole('button', { name: 'Save' })).toBeDisabled();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+});
+
+test('birthdays page has no server action (POST is refused)', async ({ request }) => {
+	const res = await request.post('/birthdays', { form: { x: '1' }, headers: { origin: 'http://127.0.0.1:5173' } });
+	expect([403, 404, 405]).toContain(res.status());
 });

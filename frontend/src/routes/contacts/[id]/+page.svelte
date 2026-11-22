@@ -78,6 +78,9 @@
 			<h1 class="text-2xl font-semibold break-words">{c.name}{#if c.isDead}<span class="ml-2 text-base font-normal text-muted">(deceased)</span>{/if}</h1>
 			{#if c.nickname}<p class="text-muted">“{c.nickname}”</p>{/if}
 			{#if c.job || c.company}<p class="text-sm text-muted">{[c.job, c.company].filter(Boolean).join(' at ')}</p>{/if}
+			{#if !c.birthday && !c.isDead}
+				<a href="/birthdays?contact={c.id}" class="mt-1 inline-block text-sm text-accent">+ Add birthday</a>
+			{/if}
 			{#if c.birthday}
 				<p class="mt-1 text-sm" data-testid="birthday">
 					<span class={c.birthday.daysUntil <= 30 ? 'font-medium text-attention' : 'text-muted'}>{birthdayLine(c.birthday)}</span>

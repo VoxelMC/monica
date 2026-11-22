@@ -331,6 +331,14 @@ Built: a **Log** button in the middle of the phone tab bar (top of the sidebar o
 
 Payloads come from `src/lib/log.ts` (`hangoutPayload`, `journalPayload`), so the preview and the real write cannot drift apart. `/log` has no form action until this slice is approved.
 
+**Adding birthdays (requested 2026-11-22; read-only parts built, saving with this slice)**
+
+Built: a Birthdays page (the year ahead by month, and a one-row-per-person form for everyone without a birthday: month, day, optional year), "+ Add birthday" on contact pages, links from the Home card. Preview shows the exact request; Save is disabled.
+
+- `PUT /api/contacts/{id}`. Monica's UpdateContact only updates the name and gender fields that are sent, so orbit leaves out last name, middle name and nickname, and sends `first_name` and `gender_id` unchanged. It always rewrites description, birthday and deceased details, so those are sent back as they are (fetch, merge, then send). Payload: `src/lib/birthday-write.ts` (`birthdayPayload`).
+- `birthdate_add_reminder: true`, like Monica's own form (yearly "wish happy birthday" reminder).
+- At save time: fresh GET, conflict check on `updated_at`, one audit row per contact, stop at the first error.
+
 Never allowlist `POST /api/contacts/{id}/unsetTags` (removes every tag) or `DELETE /api/tags/{id}`.
 
 Batch rules: show the exact list of contacts and the change before sending; one audit row per contact; stop at the first error and report which contacts were done; stay under Monica's rate limit (60/min) with a visible progress count; a batch never retries a write that may have reached Monica.

@@ -8,7 +8,9 @@
 
 	// Computed in the browser too, so "today" is the viewer's day, not the server's.
 	const birthdays = $derived(upcomingBirthdays(data.contacts));
-	const nextLater = $derived(birthdays.length ? null : (upcomingBirthdays(data.contacts, new Date(), 366)[0] ?? null));
+	// After the 30-day window: the next few, so the card is never just "none".
+	const later = $derived(upcomingBirthdays(data.contacts, new Date(), 366).filter((b) => b.info.daysUntil > 30).slice(0, 3));
+	const noBirthday = $derived(data.contacts.filter((c) => !c.birthday).length);
 	const overdue = $derived(catchUpSoon(data.contacts));
 	const recent = $derived(recentlyChanged(data.contacts, 5));
 	const hasTargets = $derived(data.contacts.some((c) => c.stayInTouchDays));
@@ -48,6 +50,10 @@
 
 	<div class="grid gap-3 lg:grid-cols-2">
 		{#snippet bdays()}
+			{#snippet sub(label: string)}
+				<h3 class="mt-1 mb-1 text-xs font-semibold tracking-wider text-muted uppercase">{label}</h3>
+			{/snippet}
+			{@render sub('Next 30 days')}
 			{#if birthdays.length}
 				<ul>
 					{#each birthdays as b (b.contact.id)}
@@ -60,16 +66,24 @@
 					{/each}
 				</ul>
 			{:else}
-				<p class="text-sm text-muted">No birthdays in the next 30 days.</p>
-				{#if nextLater}
-					<p class="mt-2 mb-1 text-sm text-muted">Next up</p>
-					<ul>
-						{@render person(nextLater.contact, `In ${nextLater.info.daysUntil} days · ${nextLater.info.label}`, 'text-muted', fullDate(nextLater.info.nextIso))}
-					</ul>
-				{/if}
+				<p class="pb-1 text-sm text-muted">None in the next 30 days.</p>
 			{/if}
+			{#if later.length}
+				<div class="mt-3 border-t border-line pt-3">
+					{@render sub('Later')}
+					<ul>
+						{#each later as b (b.contact.id)}
+							{@render person(b.contact, `In ${b.info.daysUntil} days · ${b.info.label}`, 'text-muted', fullDate(b.info.nextIso))}
+						{/each}
+					</ul>
+				</div>
+			{/if}
+			<div class="mt-3 flex flex-wrap justify-between gap-2 border-t border-line pt-3 text-sm">
+				<a href="/birthdays" class="text-accent">All birthdays →</a>
+				{#if noBirthday}<a href="/birthdays#missing-h" class="text-muted hover:text-fg">{noBirthday} without a birthday · Add</a>{/if}
+			</div>
 		{/snippet}
-		{@render section('Birthdays · next 30 days', birthdays.length, bdays, 'birthdays')}
+		{@render section('Birthdays', birthdays.length, bdays, 'birthdays')}
 
 		{#snippet catchup()}
 			{#if overdue.length}
