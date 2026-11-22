@@ -79,7 +79,7 @@ describe('loadContactPage', () => {
 		expect(p.timeline[1].title).toBe('They called');
 		expect(p.relationships).toEqual([{ type: 'sibling', contactId: 8, name: 'Bea Lovelace', partial: false }]);
 		expect(p.tasks.map((t) => t.id)).toEqual([5, 4]);
-		expect(p.reminders[0].frequency).toBe('every 2 months');
+		expect(p.reminders[0]).toMatchObject({ frequency: 'every 2 months', next: '2026-12-01', daysUntil: 10 });
 		expect(p.addresses[0]).toMatchObject({ label: 'Home', lines: ['1 Main St', 'V5K Vancouver', 'BC', 'Canada'] });
 	});
 
@@ -99,5 +99,22 @@ describe('loadContactPage', () => {
 	it('404 and partial contacts are not found', async () => {
 		await expect(loadContactPage(setup({}, 404).client, 7)).rejects.toBeInstanceOf(ContactNotFound);
 		await expect(loadContactPage(setup({ is_partial: true }).client, 7)).rejects.toBeInstanceOf(ContactNotFound);
+	});
+});
+
+describe('request budget', () => {
+	it('skips lists whose Monica count is zero (conversations are always fetched)', async () => {
+		const stats = { number_of_notes: 1, number_of_activities: 0, number_of_calls: 0, number_of_tasks: 0, number_of_gifts: 0, number_of_reminders: 0 };
+		const { client, calls } = setup({ statistics: stats });
+		const p = await loadContactPage(client, 7);
+		const paths = calls.map((c) => new URL(c.url).pathname);
+		expect(paths.sort()).toEqual(['/api/contacts/7', '/api/contacts/7/conversations', '/api/contacts/7/notes']);
+		expect(p.timeline.map((i) => i.kind)).toEqual(['note']);
+		expect(p.tasks).toEqual([]);
+	});
+	it('fetches everything when Monica sends no counts', async () => {
+		const { client, calls } = setup();
+		await loadContactPage(client, 7);
+		expect(calls).toHaveLength(8);
 	});
 });

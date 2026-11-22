@@ -4,6 +4,7 @@ import {
 	parseMonicaUrlOptional,
 	parsePublicUrl,
 	parseReadOnly,
+	parseRpm,
 	parseTokenOptional
 } from './lib/server/config';
 
@@ -28,6 +29,10 @@ export const variables = defineEnvVars({
 	ORBIT_DRY_RUN: {
 		schema: parseDryRun,
 		description: 'Default false. Log writes to the audit log instead of sending them.'
+	},
+	ORBIT_MONICA_RPM: {
+		schema: parseRpm,
+		description: "Default 50. Monica API requests per minute orbit allows itself; keep below Monica's RATE_LIMIT_PER_MINUTE_API."
 	},
 	ORBIT_DB_PATH: {
 		schema: (v) => (v && v.trim() ? v.trim() : './data/orbit.sqlite'),

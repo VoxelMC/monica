@@ -114,3 +114,50 @@ export function mapHref(parts: (string | null | undefined)[]): string | null {
 	const q = parts.filter((p) => p && p.trim()).join(', ');
 	return q ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(q)}` : null;
 }
+
+export interface ReminderView {
+	id: number;
+	title: string;
+	/** Next time it is due (YYYY-MM-DD), today or later; null for a one-time reminder in the past. */
+	next: string | null;
+	daysUntil: number | null;
+	frequency: string;
+}
+
+/**
+ * Next occurrence of a Monica reminder: initial date, repeated every
+ * `n` weeks/months/years (frequency_type 'week' | 'month' | 'year' | 'one_time').
+ */
+export function nextOccurrence(initialIso: string, type: string | null | undefined, n: number | null | undefined, today = new Date()): string | null {
+	const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(initialIso);
+	if (!m) return null;
+	const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+	const start = new Date(+m[1], +m[2] - 1, +m[3]);
+	const step = Math.max(1, n ?? 1);
+	const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+	if (!type || type === 'one_time') return start >= t ? iso(start) : null;
+	if (start >= t) return iso(start);
+	if (type === 'week') {
+		const days = Math.round((t.getTime() - start.getTime()) / 86_400_000);
+		const k = Math.ceil(days / (7 * step));
+		return iso(new Date(start.getFullYear(), start.getMonth(), start.getDate() + k * 7 * step));
+	}
+	const monthsPer = type === 'year' ? 12 * step : step;
+	// Add whole periods; clamp the day (Jan 31 + 1 month -> Feb 28/29).
+	const at = (k: number) => {
+		const total = start.getMonth() + k * monthsPer;
+		const y = start.getFullYear() + Math.floor(total / 12);
+		const mo = ((total % 12) + 12) % 12;
+		const last = new Date(y, mo + 1, 0).getDate();
+		return new Date(y, mo, Math.min(start.getDate(), last));
+	};
+	let k = Math.max(0, Math.floor(((t.getFullYear() - start.getFullYear()) * 12 + t.getMonth() - start.getMonth()) / monthsPer));
+	while (at(k) < t) k++;
+	return iso(at(k));
+}
+
+export function daysFromToday(iso: string, today = new Date()): number {
+	const [y, mo, d] = iso.split('-').map(Number);
+	const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+	return Math.round((new Date(y, mo - 1, d).getTime() - t.getTime()) / 86_400_000);
+}

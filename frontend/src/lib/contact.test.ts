@@ -73,3 +73,22 @@ describe('links', () => {
 		expect(mapHref([null, ' '])).toBeNull();
 	});
 });
+
+describe('reminders', () => {
+	it('next occurrence for yearly, monthly, weekly and one-time reminders', async () => {
+		const { nextOccurrence } = await import('./contact');
+		const today = new Date(2026, 10, 21); // Nov 21 2026
+		expect(nextOccurrence('2026-02-19T00:00:00Z', 'year', 1, today)).toBe('2027-02-19');
+		expect(nextOccurrence('2001-12-01T00:00:00Z', 'year', 1, today)).toBe('2026-12-01');
+		expect(nextOccurrence('2026-11-21T00:00:00Z', 'year', 1, today)).toBe('2026-11-21');
+		expect(nextOccurrence('2026-01-31T00:00:00Z', 'month', 1, today)).toBe('2026-11-30');
+		expect(nextOccurrence('2026-01-10T00:00:00Z', 'month', 3, today)).toBe('2027-01-10');
+		expect(nextOccurrence('2026-11-02T00:00:00Z', 'week', 2, today)).toBe('2026-11-30');
+		expect(nextOccurrence('2026-12-25T00:00:00Z', 'one_time', null, today)).toBe('2026-12-25');
+		expect(nextOccurrence('2026-01-01T00:00:00Z', 'one_time', null, today)).toBeNull();
+	});
+	it('days from today', async () => {
+		const { daysFromToday } = await import('./contact');
+		expect(daysFromToday('2026-11-30', new Date(2026, 10, 21))).toBe(9);
+	});
+});

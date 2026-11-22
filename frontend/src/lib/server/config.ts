@@ -75,3 +75,11 @@ export function requireAtRuntime<T>(name: string, value: T | undefined, isBuildi
 	if (value === undefined && !isBuilding) throw new Error(`${name} is not set`);
 	return value as T;
 }
+
+/** ORBIT_MONICA_RPM: requests per minute orbit allows itself. Keep it below Monica's RATE_LIMIT_PER_MINUTE_API. */
+export function parseRpm(v: string | undefined): number {
+	if (!v || !v.trim()) return 50;
+	const n = Number(v);
+	if (!Number.isInteger(n) || n < 1 || n > 10_000) throw new Error('ORBIT_MONICA_RPM must be a whole number from 1 to 10000');
+	return n;
+}

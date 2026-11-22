@@ -15,7 +15,7 @@ beforeAll(() => {
 	const env = loadEnv('development', process.cwd(), '');
 	const baseUrl = parseMonicaUrl(env.MONICA_URL);
 	assertDevTargetsStaging(baseUrl, true);
-	client = createMonicaClient(createTransport({ baseUrl, token: parseToken(env.MONICA_TOKEN), readOnly: true }), { cacheTtlMs: 60_000 });
+	client = createMonicaClient(createTransport({ baseUrl, token: parseToken(env.MONICA_TOKEN), readOnly: true, maxWaitMs: 120_000 }), { cacheTtlMs: 60_000 });
 });
 
 describe('slice 3 on staging', () => {

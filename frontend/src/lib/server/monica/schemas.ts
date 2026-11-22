@@ -175,7 +175,9 @@ export const contactDetail = contactListItem.extend({
 		how_you_met: z.looseObject({ general_information: nstr }).optional(),
 		food_preferences: nstr
 	}),
-	addresses: z.array(address).default([])
+	addresses: z.array(address).default([]),
+	/** Counts Monica keeps per contact; used to skip requests for empty lists. */
+	statistics: z.record(z.string(), z.number()).optional()
 });
 export type ContactDetail = z.infer<typeof contactDetail>;
 

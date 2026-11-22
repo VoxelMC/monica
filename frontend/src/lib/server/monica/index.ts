@@ -1,6 +1,6 @@
 // App-wide Monica client and guards, built from the environment.
 import { building, dev } from '$app/env';
-import { MONICA_PUBLIC_URL, MONICA_TOKEN as TOKEN_ENV, MONICA_URL as URL_ENV, ORBIT_DB_PATH, ORBIT_DRY_RUN, ORBIT_READ_ONLY } from '$app/env/private';
+import { MONICA_PUBLIC_URL, MONICA_TOKEN as TOKEN_ENV, MONICA_URL as URL_ENV, ORBIT_DB_PATH, ORBIT_DRY_RUN, ORBIT_MONICA_RPM, ORBIT_READ_ONLY } from '$app/env/private';
 import { createAuditLog } from '../audit';
 import { assertDevTargetsStaging, requireAtRuntime } from '../config';
 import { openDb, type OrbitDb } from '../db';
@@ -16,10 +16,11 @@ if (!building) assertDevTargetsStaging(MONICA_URL, dev);
 const transport = createTransport({
 	baseUrl: MONICA_URL,
 	token: MONICA_TOKEN,
-	readOnly: ORBIT_READ_ONLY
+	readOnly: ORBIT_READ_ONLY,
+	requestsPerMinute: ORBIT_MONICA_RPM
 });
 
-export const monica: MonicaClient = createMonicaClient(transport, { cacheTtlMs: 60_000 });
+export const monica: MonicaClient = createMonicaClient(transport, { cacheTtlMs: 120_000 });
 
 export const settings = {
 	monicaUrl: MONICA_URL,

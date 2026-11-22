@@ -119,8 +119,22 @@ describe('rate limiting', () => {
 		expect(calls).toHaveLength(3);
 	});
 
-	it('throttles to requestsPerMinute', async () => {
-		const { transport, clock } = setup(() => ({ body: {} }), { requestsPerMinute: 2 });
+	it('fails fast instead of hanging when the minute budget is used up', async () => {
+		const { transport, calls } = setup(() => ({ body: {} }), { requestsPerMinute: 2 });
+		await transport.request('GET', '/api/genders');
+		await transport.request('GET', '/api/genders');
+		await expect(transport.request('GET', '/api/genders')).rejects.toBeInstanceOf(MonicaRateLimitError);
+		expect(calls).toHaveLength(2);
+	});
+
+	it('does not wait out a long Retry-After', async () => {
+		const { client, calls } = setup([{ status: 429, headers: { 'Retry-After': '45' } }, { body: me }]);
+		await expect(client.get('/api/me', single(user))).rejects.toBeInstanceOf(MonicaRateLimitError);
+		expect(calls).toHaveLength(1);
+	});
+
+	it('throttles to requestsPerMinute (when allowed to wait)', async () => {
+		const { transport, clock } = setup(() => ({ body: {} }), { requestsPerMinute: 2, maxWaitMs: 120_000 });
 		await Promise.all([1, 2, 3].map(() => transport.request('GET', '/api/genders')));
 		expect(clock.sleeps.length).toBe(1);
 		expect(clock.sleeps[0]).toBe(60_000);

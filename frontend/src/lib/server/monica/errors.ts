@@ -24,7 +24,7 @@ export class MonicaHttpError extends MonicaError {
 /** Still rate limited after all retries. */
 export class MonicaRateLimitError extends MonicaError {
 	constructor(method: string, path: string) {
-		super(`Monica ${method} ${path} is still rate limited (429) after retries`, method, path, 429);
+		super(`Monica is busy (too many requests this minute) for ${method} ${path}`, method, path, 429);
 		this.name = 'MonicaRateLimitError';
 	}
 }
@@ -66,4 +66,11 @@ export class ConflictError extends Error {
 		super(`Conflict on ${path}: it was changed in Monica since you loaded it`);
 		this.name = 'ConflictError';
 	}
+}
+
+/** What to tell the person when a page cannot load from Monica. */
+export function loadErrorMessage(err: unknown, what: string): string {
+	if (err instanceof MonicaRateLimitError) return 'Monica is busy right now (too many requests this minute). Try again in a few seconds.';
+	if (err instanceof MonicaError) return `Could not load ${what} from Monica.`;
+	return `Could not load ${what}.`;
 }

@@ -113,6 +113,32 @@
 				{@render card('Contact', fieldsBody)}
 			{/if}
 
+			<!-- Reminders: open and first, so they are seen without a tap -->
+			{#if c.reminders.length}
+				<section class="rounded-[var(--radius-card)] border border-line bg-surface p-4" aria-labelledby="reminders-h" data-testid="reminders">
+					<h2 id="reminders-h" class="mb-2 text-base font-semibold">Reminders</h2>
+					<ul class="flex flex-col divide-y divide-line">
+						{#each c.reminders as r (r.id)}
+							<li class="flex items-baseline justify-between gap-3 py-2 first:pt-0 last:pb-0">
+								<span class="min-w-0">
+									<span class="block">{r.title}</span>
+									<span class="block text-sm text-muted">{r.frequency}</span>
+								</span>
+								{#if r.next !== null && r.daysUntil !== null}
+									<time
+										datetime={r.next}
+										title={fullDate(r.next)}
+										class="shrink-0 text-sm tabular {r.daysUntil <= 7 ? 'font-semibold text-attention' : 'text-muted'}"
+									>{r.daysUntil === 0 ? 'Today' : r.daysUntil === 1 ? 'Tomorrow' : `In ${r.daysUntil} days`} · {fullDate(r.next)}</time>
+								{:else}
+									<span class="shrink-0 text-sm text-muted">Done</span>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				</section>
+			{/if}
+
 			<!-- Timeline -->
 			{#snippet timelineBody()}
 				{#if c.timeline.length}
@@ -187,17 +213,6 @@
 				{:else}<p class="text-sm text-muted">No gifts or ideas yet.</p>{/if}
 			{/snippet}
 			{@render fold('Gifts', c.gifts.length, giftBody)}
-
-			{#snippet reminderBody()}
-				{#if c.reminders.length}
-					<ul class="flex flex-col gap-2">
-						{#each c.reminders as r (r.id)}
-							<li class="text-sm">{r.title}<p class="text-xs text-muted"><time datetime={r.date}>{fullDate(r.date)}</time> · {r.frequency}</p></li>
-						{/each}
-					</ul>
-				{:else}<p class="text-sm text-muted">No reminders.</p>{/if}
-			{/snippet}
-			{@render fold('Reminders', c.reminders.length, reminderBody)}
 
 			{#if c.howYouMet || c.foodPreferences}
 				{#snippet moreBody()}

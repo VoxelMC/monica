@@ -13,7 +13,7 @@ beforeAll(() => {
 	const env = loadEnv('development', process.cwd(), '');
 	const baseUrl = parseMonicaUrl(env.MONICA_URL);
 	assertDevTargetsStaging(baseUrl, true); // never run these against anything but staging
-	const transport = createTransport({ baseUrl, token: parseToken(env.MONICA_TOKEN), readOnly: true });
+	const transport = createTransport({ baseUrl, token: parseToken(env.MONICA_TOKEN), readOnly: true, maxWaitMs: 120_000 });
 	client = createMonicaClient(transport, { cacheTtlMs: 0 });
 });
 

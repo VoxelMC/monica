@@ -214,3 +214,14 @@ test('people header does not move when scrolling starts', async ({ page }) => {
 	const atRest = await top(0);
 	for (const y of [5, 20, 200]) expect(await top(y)).toBe(atRest);
 });
+
+test('reminders show open, above the timeline, with when they are next due', async ({ page }) => {
+	await page.goto('/contacts?q=Maria');
+	await page.waitForLoadState('networkidle');
+	await page.getByTestId('contact-card').first().click();
+	const reminders = page.getByTestId('reminders');
+	await expect(reminders).toBeVisible();
+	await expect(reminders).toContainText(/In \d+ days|Today|Tomorrow/);
+	const [r, t] = await Promise.all([reminders.boundingBox(), page.getByRole('heading', { name: 'Timeline' }).boundingBox()]);
+	expect(r!.y).toBeLessThan(t!.y);
+});

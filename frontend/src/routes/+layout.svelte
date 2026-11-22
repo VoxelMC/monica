@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '#lib/assets/favicon.svg';
-	import { page } from '$app/state';
+	import { navigating, page } from '$app/state';
 	import { themeCss } from '#lib/themes.js';
 	import type { LayoutProps } from './$types';
 
@@ -30,6 +30,13 @@
 	<!-- All colour themes; the active one is chosen by attributes on <html> -->
 	{@html `<style id="orbit-themes">${themeCss()}</style>`}
 </svelte:head>
+
+<!-- Loading bar: shows that a click is being handled while the next page loads -->
+{#if navigating.to}
+	<div class="fixed inset-x-0 top-0 z-50 h-0.5 overflow-hidden" role="progressbar" aria-label="Loading">
+		<div class="h-full w-1/3 animate-[orbit-load_1s_ease-in-out_infinite] bg-accent-solid"></div>
+	</div>
+{/if}
 
 <div class="lg:flex">
 	<!-- Desktop sidebar -->

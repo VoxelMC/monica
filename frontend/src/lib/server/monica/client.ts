@@ -30,6 +30,11 @@ export interface TransportOptions {
 	requestsPerMinute?: number;
 	/** Retries after a 429 (and, for GET only, after network errors / 502-504). */
 	maxRetries?: number;
+	/**
+	 * Longest time a request may wait for the per-minute budget (or a 429's
+	 * Retry-After) before failing with MonicaRateLimitError instead of hanging.
+	 */
+	maxWaitMs?: number;
 }
 
 export interface Transport {
@@ -71,11 +76,11 @@ export function retryAfterMs(header: string | null, now: number): number {
 	return Math.min(Math.max(ms, 1000), 120_000);
 }
 
-/** Rolling-window limiter; requests wait in FIFO order. */
-function createLimiter(perMinute: number, sleep: (ms: number) => Promise<void>, now: () => number) {
+/** Rolling-window limiter; requests wait in FIFO order, but never longer than maxWaitMs. */
+function createLimiter(perMinute: number, maxWaitMs: number, sleep: (ms: number) => Promise<void>, now: () => number) {
 	const sent: number[] = [];
 	let chain: Promise<void> = Promise.resolve();
-	return function acquire(): Promise<void> {
+	return function acquire(onTooLong: () => Error): Promise<void> {
 		const next = chain.then(async () => {
 			for (;;) {
 				const t = now();
@@ -84,7 +89,9 @@ function createLimiter(perMinute: number, sleep: (ms: number) => Promise<void>, 
 					sent.push(t);
 					return;
 				}
-				await sleep(60_000 - (t - sent[0]));
+				const wait = 60_000 - (t - sent[0]);
+				if (wait > maxWaitMs) throw onTooLong();
+				await sleep(wait);
 			}
 		});
 		chain = next.catch(() => {});
@@ -97,7 +104,8 @@ export function createTransport(opts: TransportOptions): Transport {
 	const sleep = opts.sleep ?? defaultSleep;
 	const now = opts.now ?? Date.now;
 	const maxRetries = opts.maxRetries ?? 3;
-	const acquire = createLimiter(opts.requestsPerMinute ?? 50, sleep, now);
+	const maxWaitMs = opts.maxWaitMs ?? 8_000;
+	const acquire = createLimiter(opts.requestsPerMinute ?? 50, maxWaitMs, sleep, now);
 	const baseUrl = opts.baseUrl;
 	const token = opts.token;
 
@@ -116,7 +124,7 @@ export function createTransport(opts: TransportOptions): Transport {
 		const url = buildUrl(baseUrl, path, ro.query);
 
 		for (let attempt = 0; ; attempt++) {
-			await acquire();
+			await acquire(() => new MonicaRateLimitError(method, path));
 			let res: Response;
 			try {
 				res = await doFetch(url, {
@@ -144,8 +152,9 @@ export function createTransport(opts: TransportOptions): Transport {
 
 			if (res.status === 429) {
 				// 429 means Monica did not process the request, so retrying is safe for writes too.
-				if (attempt < maxRetries) {
-					await sleep(retryAfterMs(res.headers.get('Retry-After'), now()));
+				const wait = retryAfterMs(res.headers.get('Retry-After'), now());
+				if (attempt < maxRetries && wait <= maxWaitMs) {
+					await sleep(wait);
 					continue;
 				}
 				throw new MonicaRateLimitError(method, path);

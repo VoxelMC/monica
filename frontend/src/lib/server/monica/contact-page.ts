@@ -2,7 +2,7 @@
 // GET /api/contacts/{id}?with=contactfields includes addresses and contact fields;
 // notes, activities, calls, conversations, tasks, gifts and reminders come from
 // /api/contacts/{id}/<resource>, all paginated.
-import { birthdayInfo, fieldHref, mapHref, parseBirthday, safeHttpUrl, sortTimeline, type BirthdayInfo, type ContactFieldView, type TimelineItem } from '../../contact';
+import { birthdayInfo, daysFromToday, fieldHref, mapHref, nextOccurrence, parseBirthday, safeHttpUrl, sortTimeline, type BirthdayInfo, type ContactFieldView, type ReminderView, type TimelineItem } from '../../contact';
 import { displayName } from '../../contacts';
 import type { MonicaClient } from './client';
 import { MonicaHttpError } from './errors';
@@ -30,7 +30,8 @@ export interface ContactPage {
 	relationships: { type: string; contactId: number; name: string; partial: boolean }[];
 	tasks: { id: number; title: string; description: string | null; completed: boolean }[];
 	gifts: { id: number; name: string; status: string | null; comment: string | null; amount: string | null; href: string | null }[];
-	reminders: { id: number; title: string; date: string; frequency: string }[];
+	/** Soonest first; past one-time reminders last. */
+	reminders: ReminderView[];
 	howYouMet: string | null;
 	foodPreferences: string | null;
 	updatedAt: string;
@@ -55,14 +56,21 @@ export async function loadContactPage(client: MonicaClient, id: number, today = 
 	if (detail.is_partial) throw new ContactNotFound(`Contact ${id} is partial`);
 
 	const base = `/api/contacts/${id}`;
+	// Monica's per-contact counts let us skip lists that are empty (most of them on a
+	// typical contact), which keeps orbit well inside Monica's per-minute API limit.
+	// Conversations have no count, so they are always fetched.
+	const stats = detail.statistics;
+	const has = (key: string) => !stats || stats[key] === undefined || stats[key] > 0;
+	const list = <T extends import('zod').ZodType>(key: string | null, path: string, schema: T) =>
+		key === null || has(key) ? client.getAll(`${base}/${path}`, schema) : Promise.resolve([] as import('zod').infer<T>[]);
 	const [notes, activities, calls, conversations, tasks, gifts, reminders] = await Promise.all([
-		client.getAll(`${base}/notes`, note),
-		client.getAll(`${base}/activities`, activity),
-		client.getAll(`${base}/calls`, call),
-		client.getAll(`${base}/conversations`, conversation),
-		client.getAll(`${base}/tasks`, task),
-		client.getAll(`${base}/gifts`, gift),
-		client.getAll(`${base}/reminders`, reminder)
+		list('number_of_notes', 'notes', note),
+		list('number_of_activities', 'activities', activity),
+		list('number_of_calls', 'calls', call),
+		list(null, 'conversations', conversation),
+		list('number_of_tasks', 'tasks', task),
+		list('number_of_gifts', 'gifts', gift),
+		list('number_of_reminders', 'reminders', reminder)
 	]);
 
 	const fields = detail.contactFields ?? [];
@@ -143,7 +151,12 @@ export async function loadContactPage(client: MonicaClient, id: number, today = 
 			amount: g.amount_with_currency ?? null,
 			href: safeHttpUrl(g.url)
 		})),
-		reminders: reminders.map((r) => ({ id: r.id, title: r.title, date: r.initial_date, frequency: frequency(r.frequency_type, r.frequency_number) })),
+		reminders: reminders
+			.map((r) => {
+				const next = nextOccurrence(r.initial_date, r.frequency_type, r.frequency_number, today);
+				return { id: r.id, title: r.title, next, daysUntil: next ? daysFromToday(next, today) : null, frequency: frequency(r.frequency_type, r.frequency_number) };
+			})
+			.sort((a, b) => (a.daysUntil ?? Infinity) - (b.daysUntil ?? Infinity)),
 		howYouMet: detail.information.how_you_met?.general_information ?? null,
 		foodPreferences: detail.information.food_preferences ?? null,
 		updatedAt: detail.updated_at
