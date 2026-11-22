@@ -17,7 +17,7 @@ export async function loadDiary(client: MonicaClient): Promise<DiaryItem[]> {
 			title: a.summary || a.activity_type?.name || 'Hangout',
 			body: a.description ?? null,
 			type: a.activity_type?.name ?? null,
-			people: (a.attendees?.contacts ?? []).map((c) => ({ id: c.id, name: displayName(null, null, c.complete_name) }))
+			people: (a.attendees?.contacts ?? []).map((c) => ({ id: c.id, name: displayName(c.first_name ?? null, c.last_name ?? null, c.complete_name), hashId: c.hash_id ?? null }))
 		})),
 		...entries.map((e) => ({
 			kind: 'journal' as const,

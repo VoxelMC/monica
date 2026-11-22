@@ -294,3 +294,15 @@ test('birthdays page has no server action (POST is refused)', async ({ request }
 	const res = await request.post('/birthdays', { form: { x: '1' }, headers: { origin: 'http://127.0.0.1:5173' } });
 	expect([403, 404, 405]).toContain(res.status());
 });
+
+test('contact page: notes have their own section, separate from the timeline', async ({ page }) => {
+	await page.goto('/contacts/7');
+	await page.waitForLoadState('networkidle');
+	const timeline = page.getByTestId('timeline');
+	const notes = page.getByTestId('notes');
+	await expect(notes).toBeVisible();
+	await expect(notes).toContainText('Pursuing registered massage therapist');
+	if (await timeline.count()) await expect(timeline).not.toContainText('Pursuing registered massage therapist');
+	await expect(page.getByRole('heading', { name: /^Notes/ })).toBeVisible();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+});

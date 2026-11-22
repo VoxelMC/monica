@@ -129,6 +129,9 @@ const nstr = z.string().nullable().optional();
 
 export const contactShort = z.looseObject({
 	id: z.number().int(),
+	hash_id: z.string().nullable().optional(),
+	first_name: z.string().nullable().optional(),
+	last_name: z.string().nullable().optional(),
 	complete_name: z.string(),
 	initials: z.string().optional(),
 	is_partial: z.boolean().optional()

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Avatar from '#lib/components/Avatar.svelte';
 	import Tag from '#lib/components/Tag.svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { fullDate, relativeDate } from '#lib/contacts.js';
 	import type { PageProps } from './$types';
 
@@ -9,6 +10,28 @@
 
 	const kindLabel = { note: 'Note', activity: 'Catch-up', call: 'Call', conversation: 'Conversation' } as const;
 	const kindDot = { note: 'bg-dot-note', activity: 'bg-dot-activity', call: 'bg-dot-call', conversation: 'bg-dot-conversation' } as const;
+
+	// ---- Timeline: events only (notes have their own section), filterable, shortened
+	type EventKind = 'activity' | 'call' | 'conversation';
+	const kindPlural: Record<EventKind, string> = { activity: 'Catch-ups', call: 'Calls', conversation: 'Conversations' };
+	const events = $derived(c.timeline.filter((i) => i.kind !== 'note'));
+	const notes = $derived(c.timeline.filter((i) => i.kind === 'note'));
+	const kindsPresent = $derived((['activity', 'call', 'conversation'] as const).filter((k) => events.some((e) => e.kind === k)));
+	let filter = $state<'all' | EventKind>('all');
+	const filtered = $derived(filter === 'all' ? events : events.filter((e) => e.kind === filter));
+	let showAllEvents = $state(false);
+	let showAllNotes = $state(false);
+	const EVENTS_SHOWN = 10;
+	const NOTES_SHOWN = 5;
+	const expanded = new SvelteSet<number>();
+	// A new contact page (e.g. via a relationship link) starts fresh
+	$effect(() => {
+		void c.id;
+		filter = 'all';
+		showAllEvents = false;
+		showAllNotes = false;
+		expanded.clear();
+	});
 	const giftStatus: Record<string, string> = { idea: 'Idea', offered: 'Given', received: 'Received' };
 
 	function birthdayLine(b: NonNullable<typeof c.birthday>): string {
@@ -142,11 +165,26 @@
 				</section>
 			{/if}
 
-			<!-- Timeline -->
+			<!-- Timeline: catch-ups, calls and conversations (notes are below) -->
 			{#snippet timelineBody()}
-				{#if c.timeline.length}
+				{#if kindsPresent.length > 1}
+					<div class="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Show">
+						{#each [['all', 'All', events.length], ...kindsPresent.map((k) => [k, kindPlural[k], events.filter((e) => e.kind === k).length])] as [k, label, n] (k)}
+							<button
+								type="button"
+								aria-pressed={filter === k}
+								class="inline-flex min-h-8 items-center gap-1.5 rounded-[var(--radius-chip)] border px-2.5 text-sm {filter === k ? 'border-accent-solid bg-accent-solid text-on-accent' : 'border-control bg-surface text-fg'}"
+								onclick={() => ((filter = k as typeof filter), (showAllEvents = false))}
+							>
+								{#if k !== 'all'}<span class="size-2 rounded-[2px] {kindDot[k as EventKind]}" aria-hidden="true"></span>{/if}{label}
+								<span class="text-xs tabular opacity-80">{n}</span>
+							</button>
+						{/each}
+					</div>
+				{/if}
+				{#if filtered.length}
 					<ol class="flex flex-col gap-4" data-testid="timeline">
-						{#each c.timeline as item (item.kind + item.id)}
+						{#each showAllEvents ? filtered : filtered.slice(0, EVENTS_SHOWN) as item (item.kind + item.id)}
 							<li class="flex gap-3">
 								<span class="mt-1.5 size-2.5 shrink-0 rounded-[var(--radius-chip)] {kindDot[item.kind]}" aria-hidden="true"></span>
 								<div class="min-w-0 flex-1">
@@ -160,11 +198,44 @@
 							</li>
 						{/each}
 					</ol>
+					{#if filtered.length > EVENTS_SHOWN}
+						<button type="button" class="mt-3 text-sm text-accent" onclick={() => (showAllEvents = !showAllEvents)}>
+							{showAllEvents ? 'Show fewer' : `Show all ${filtered.length}`}
+						</button>
+					{/if}
 				{:else}
-					<p class="text-sm text-muted">Nothing logged yet. Notes, catch-ups and calls will show up here.</p>
+					<p class="text-sm text-muted">No catch-ups or calls yet. <a href="/log?people={c.id}" class="text-accent">Log one</a></p>
 				{/if}
 			{/snippet}
 			{@render card('Timeline', timelineBody)}
+
+			<!-- Notes: their own section, newest first, long ones folded -->
+			{#snippet notesBody()}
+				{#if notes.length}
+					<ol class="flex flex-col divide-y divide-line" data-testid="notes">
+						{#each showAllNotes ? notes : notes.slice(0, NOTES_SHOWN) as n (n.id)}
+							{@const long = (n.body ?? '').length > 280 || (n.body ?? '').split('\n').length > 5}
+							<li class="py-3 first:pt-0 last:pb-0">
+								<p class="mb-1 text-xs text-muted"><time datetime={n.date} title={fullDate(n.date)}>{relativeDate(n.date)}</time></p>
+								<p class="text-sm break-words whitespace-pre-line {long && !expanded.has(n.id) ? 'line-clamp-4' : ''}">{n.body}</p>
+								{#if long}
+									<button type="button" class="mt-1 text-sm text-accent" onclick={() => (expanded.has(n.id) ? expanded.delete(n.id) : expanded.add(n.id))}>
+										{expanded.has(n.id) ? 'Show less' : 'Show more'}
+									</button>
+								{/if}
+							</li>
+						{/each}
+					</ol>
+					{#if notes.length > NOTES_SHOWN}
+						<button type="button" class="mt-3 text-sm text-accent" onclick={() => (showAllNotes = !showAllNotes)}>
+							{showAllNotes ? 'Show fewer' : `Show all ${notes.length} notes`}
+						</button>
+					{/if}
+				{:else}
+					<p class="text-sm text-muted">No notes yet.</p>
+				{/if}
+			{/snippet}
+			{@render card(notes.length ? `Notes · ${notes.length}` : 'Notes', notesBody)}
 		</div>
 
 		<!-- Side panels -->

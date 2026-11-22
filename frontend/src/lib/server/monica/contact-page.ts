@@ -110,7 +110,7 @@ export async function loadContactPage(client: MonicaClient, id: number, today = 
 		(rel?.[g]?.contacts ?? []).map((r) => ({
 			type: r.relationship.name,
 			contactId: r.contact.id,
-			name: r.contact.complete_name,
+			name: displayName(r.contact.first_name ?? null, r.contact.last_name ?? null, r.contact.complete_name),
 			partial: !!r.contact.is_partial
 		}))
 	);

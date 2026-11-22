@@ -41,6 +41,17 @@
 						</p>
 					{/if}
 					{#if item.body}<p class="mt-2 text-sm break-words whitespace-pre-line">{item.body}</p>{/if}
+					{#if data.monicaUrl}
+						<!-- orbit never deletes; edit or remove entries in Monica -->
+						<p class="mt-2 text-xs text-muted">
+							Edit or remove in Monica:
+							{#if item.kind === 'journal'}
+								<a class="underline underline-offset-2" href="{data.monicaUrl}/journal" target="_blank" rel="noopener noreferrer">Journal ↗</a>
+							{:else}
+								{#each item.people.filter((p) => p.hashId) as p, i (p.id)}<a class="underline underline-offset-2" href="{data.monicaUrl}/people/{encodeURIComponent(p.hashId!)}" target="_blank" rel="noopener noreferrer">{p.name} ↗</a>{i < item.people.length - 1 ? ' · ' : ''}{/each}
+							{/if}
+						</p>
+					{/if}
 				</li>
 			{/each}
 		</ol>

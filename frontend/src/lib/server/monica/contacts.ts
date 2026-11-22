@@ -77,7 +77,7 @@ export async function listOpenTasks(client: MonicaClient) {
 			title: t.title,
 			description: t.description ?? null,
 			createdAt: t.created_at,
-			contact: t.contact && !t.contact.is_partial ? { id: t.contact.id, name: displayName(null, null, t.contact.complete_name) } : null
+			contact: t.contact && !t.contact.is_partial ? { id: t.contact.id, name: displayName(t.contact.first_name ?? null, t.contact.last_name ?? null, t.contact.complete_name) } : null
 		}))
 		.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

@@ -15,7 +15,7 @@ export interface DiaryItem {
 	title: string;
 	body: string | null;
 	type: string | null;
-	people: { id: number; name: string }[];
+	people: { id: number; name: string; hashId?: string | null }[];
 }
 
 export interface HangoutDraft {
