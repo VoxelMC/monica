@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import ContactCard from '#lib/components/ContactCard.svelte';
@@ -101,6 +102,26 @@
 		} catch {
 			fallbackText = text; // clipboard blocked: show it for manual copy
 		}
+	}
+
+	// ---- Bulk tags: add or remove one tag on the selection (guarded writes, confirmed first)
+	let tagSheet = $state<'add' | 'remove' | null>(null);
+	let tagName = $state('');
+	let tagBusy = $state(false);
+	const fold2 = (s: string) => s.trim().toLocaleLowerCase();
+	const tagsInSelection = $derived(allTags(selectedContacts));
+	const affected = $derived(
+		tagName.trim()
+			? selectedContacts.filter((c) => {
+					const has = c.tags.some((t) => fold2(t) === fold2(tagName));
+					return tagSheet === 'add' ? !has : has;
+				})
+			: []
+	);
+	const tagDraft = $derived(JSON.stringify({ mode: tagSheet ?? 'add', contactIds: selectedContacts.map((c) => c.id), tag: tagName }));
+	function openTagSheet(mode: 'add' | 'remove') {
+		tagSheet = mode;
+		tagName = '';
 	}
 
 	// ---- Keep the URL in sync (no navigation, no history spam)
@@ -354,11 +375,11 @@
 			<div class="flex gap-2 overflow-x-auto [scrollbar-width:none]">
 				<button type="button" class="{chip} {chipOff}" disabled={!selected.size} onclick={() => copy('emails')}>Copy emails</button>
 				<button type="button" class="{chip} {chipOff}" disabled={!selected.size} onclick={() => copy('phones')}>Copy phones</button>
-				<button type="button" class="{chip} {chipOff} opacity-50" disabled title="Arrives with writes (slice 4)">Add tag…</button>
-				<button type="button" class="{chip} {chipOff} opacity-50" disabled title="Arrives with writes (slice 4)">Remove tag…</button>
+				<button type="button" class="{chip} {chipOff}" disabled={!selected.size} onclick={() => openTagSheet('add')}>Add tag…</button>
+				<button type="button" class="{chip} {chipOff}" disabled={!selected.size || !tagsInSelection.length} onclick={() => openTagSheet('remove')}>Remove tag…</button>
 				<a href="/log?people={[...selected].join(',')}" class="{chip} {chipOff}" aria-disabled={!selected.size}>Log catch-up…</a>
 			</div>
-			<p class="text-xs text-muted">Tagging arrives with writes (slice 4). Log catch-up opens the form with these people.</p>
+			{#if data.readOnly}<p class="text-xs text-muted">orbit is read-only right now, so tag changes will be refused.</p>{/if}
 		</div>
 	</div>
 {/if}
@@ -376,6 +397,57 @@
 			<!-- svelte-ignore a11y_autofocus -->
 			<textarea readonly autofocus class="h-48 w-full rounded-[var(--radius-input)] border border-control p-2 text-base" onfocus={(e) => e.currentTarget.select()}>{fallbackText}</textarea>
 			<button type="button" class="mt-2 min-h-11 w-full rounded-[var(--radius-input)] bg-accent-solid text-on-accent" onclick={() => (fallbackText = '')}>Close</button>
+		</div>
+	</div>
+{/if}
+
+{#if tagSheet}
+	<div class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="tag-sheet-h">
+		<div class="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-[var(--radius-card)] bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-[var(--radius-card)]">
+			<h2 id="tag-sheet-h" class="text-lg font-semibold">{tagSheet === 'add' ? 'Add a tag' : 'Remove a tag'} · {selected.size} selected</h2>
+			{#if tagSheet === 'add'}
+				<label class="mt-3 block text-sm font-medium" for="tag-name">Tag</label>
+				<input id="tag-name" class="mt-1 h-10 w-full rounded-[var(--radius-input)] border border-control bg-surface px-3" placeholder="Pick below or type a new one" bind:value={tagName} autocomplete="off" />
+			{/if}
+			<div class="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Tags">
+				{#each tagSheet === 'add' ? everyTag : tagsInSelection as t (t)}
+					<button type="button" aria-pressed={fold2(tagName) === fold2(t)} class="{chip} {fold2(tagName) === fold2(t) ? chipOn : chipOff}" onclick={() => (tagName = t)}>
+						<span class="size-1.5 rounded-[1px]" style:background-color={fold2(tagName) === fold2(t) ? 'currentColor' : `var(--hue-${tagHue(t)})`} aria-hidden="true"></span>{t}
+					</button>
+				{/each}
+			</div>
+			{#if tagName.trim()}
+				<div class="mt-4 rounded-[var(--radius-input)] border border-line bg-surface-2 p-3 text-sm" data-testid="tag-preview">
+					{#if affected.length}
+						<p class="font-semibold">{tagSheet === 'add' ? 'Add' : 'Remove'} “{tagName.trim()}” {tagSheet === 'add' ? 'to' : 'from'} {affected.length} {affected.length === 1 ? 'person' : 'people'}:</p>
+						<p class="mt-1 text-muted">{affected.map((c) => c.name).join(', ')}</p>
+						{#if selected.size - affected.length}<p class="mt-1 text-muted">{selected.size - affected.length} skipped ({tagSheet === 'add' ? 'already have it' : "don't have it"}).</p>{/if}
+						<p class="mt-2 text-xs text-muted">One request per person ({tagSheet === 'add' ? 'POST /api/contacts/{id}/setTags' : 'POST /api/contacts/{id}/unsetTag'}).{tagSheet === 'remove' ? ' The tag itself stays in Monica.' : ''}</p>
+					{:else}
+						<p class="text-muted">{tagSheet === 'add' ? 'Everyone selected already has this tag.' : 'No one selected has this tag.'}</p>
+					{/if}
+				</div>
+			{/if}
+			<form
+				method="POST"
+				action="?/tags"
+				use:enhance={() => {
+					tagBusy = true;
+					return async ({ result, update }) => {
+						tagBusy = false;
+						const d = (result.type === 'success' || result.type === 'failure' ? result.data : null) as { ok: boolean; message: string } | null;
+						say(d?.message ?? 'Something went wrong; check the audit log.');
+						if (d?.ok) tagSheet = null;
+						await update({ reset: false });
+					};
+				}}
+			>
+				<input type="hidden" name="draft" value={tagDraft} />
+				<button type="submit" disabled={!affected.length || tagBusy} class="mt-4 h-11 w-full rounded-[var(--radius-input)] font-semibold disabled:opacity-40 {tagSheet === 'add' ? 'bg-accent-solid text-on-accent' : 'bg-attention text-surface'}">
+					{tagBusy ? 'Saving…' : affected.length ? `${tagSheet === 'add' ? 'Add to' : 'Remove from'} ${affected.length} ${affected.length === 1 ? 'person' : 'people'}` : tagSheet === 'add' ? 'Add' : 'Remove'}
+				</button>
+			</form>
+			<button type="button" disabled={tagBusy} class="mt-2 h-11 w-full rounded-[var(--radius-input)] border border-control" onclick={() => (tagSheet = null)}>Cancel</button>
 		</div>
 	</div>
 {/if}

@@ -311,6 +311,12 @@ Writes, in this order, each with its own guard test and owner approval of real s
 | Merge tag A into B | `setTags` B, then `unsetTag` A, per contact | Deleting the empty tag A stays in the old UI (no DELETE) |
 | Remove tag from many | `POST /api/contacts/{id}/unsetTag` `{"tags":[tag_id]}`, one per contact | Detaches only; the tag remains |
 
+**Birthdays, bulk tags, journal entries: built and run on staging 2026-11-23 (owner asked for all three; awaiting approval)**
+
+- Birthdays: `contact.birthday` rule (PUT, fetch-merge-send from a fresh GET; only birthday fields; refuses if a birthday exists). Staging: Lioh (1) got 1999-08-03; diff of the full record before/after showed only the birthday, its reminder, the reminder count and `updated_at` changed (gender, not sent, unchanged). Audit #71.
+- Bulk tags: `contact.tags.add` (setTags) and `contact.tags.remove` (unsetTag), one tag on one contact per request; people who already have it (or don't) are skipped. Staging: "Discord" added to and removed from Lioh (1) and Aeon (2); both back to their original tags, Lucy (8) untouched, no tag created. Audit #72-#75.
+- Journal: `journal.create` (title, post; Monica sets the date to the day it is saved, so the earlier open question is closed: no date field). Mentions are stored in orbit's `journal_mentions` table (migration 0001); removing an entry also clears its links. Staging: entry 1 mentioning Braeden (7) created, shown on his page, then removed; Monica and orbit both back to empty. Audit #76-#77.
+
 **Removing hangouts, notes and journal entries (owner decision 2026-11-23)**
 
 - `DELETE /api/activities/{id}`, `/api/notes/{id}`, `/api/journal/{id}`; never contacts or anything else. The transport refuses any other DELETE path and any DELETE not issued by `guards.remove`.
@@ -324,7 +330,7 @@ Built: a **Log** button in the middle of the phone tab bar (top of the sidebar o
 | Entry | Monica call (from v4.1.2 source) | Notes |
 | --- | --- | --- |
 | Hangout | `POST /api/activities` `{summary, happened_at (Y-m-d), contacts:[ids], activity_type_id?, description?}` | One write for any number of people; shows on each timeline and updates "last activity" |
-| Journal entry | `POST /api/journal` `{title, post}` | Check on staging whether `date` is accepted (the controller mass-assigns the request) |
+| Journal entry | `POST /api/journal` `{title, post}` | No date: Monica only mass-assigns title and post; an entry is dated the day it is saved |
 
 **Per-person notes and journal mentions (requested 2026-11-21; owner chose readable text + orbit link)**
 

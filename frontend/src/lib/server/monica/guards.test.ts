@@ -170,10 +170,16 @@ describe('allowlist', () => {
 			'DELETE /api/journal/{id}',
 			'DELETE /api/notes/{id}',
 			'POST /api/activities',
-			'POST /api/notes'
+			'POST /api/contacts/{id}/setTags',
+			'POST /api/contacts/{id}/unsetTag',
+			'POST /api/journal',
+			'POST /api/notes',
+			'PUT /api/contacts/{id}'
 		]);
-		expect(WRITE_ALLOWLIST.some((r) => r.method === 'PUT')).toBe(false);
-		expect(WRITE_ALLOWLIST.some((r) => r.path.includes('contacts'))).toBe(false);
+		// The only contact update is the birthday rule, and contacts can never be deleted
+		expect(WRITE_ALLOWLIST.filter((r) => r.method === 'PUT').map((r) => r.key)).toEqual(['contact.birthday']);
+		expect(WRITE_ALLOWLIST.some((r) => r.method === 'DELETE' && r.path.includes('contacts'))).toBe(false);
+		expect(WRITE_ALLOWLIST.some((r) => r.path.endsWith('/unsetTags'))).toBe(false);
 	});
 
 	it('real rules: activity and note fields are limited to what the Log form sends', () => {
@@ -210,10 +216,10 @@ describe('allowlist', () => {
 		expect(calls).toHaveLength(0);
 	});
 
-	it('updates are still impossible, and so is deleting a contact', async () => {
+	it('general contact updates are impossible (only contact.birthday), and so is deleting a contact', async () => {
 		const { guards, transport, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST] });
 		await expect(guards.update('contact.update', 1, {}, 'x')).rejects.toMatchObject({ reason: 'not-allowlisted' });
-		expect(() => checkWrite('PUT', '/api/contacts/1', { readOnly: false, allowlist: WRITE_ALLOWLIST })).toThrow(/not on the write allowlist/);
+		expect(() => checkWrite('PUT', '/api/contactfields/1', { readOnly: false, allowlist: WRITE_ALLOWLIST })).toThrow(/not on the write allowlist/);
 		await expect(transport.request('DELETE' as Method, '/api/contacts/1', { deleteCapability: DELETE_CAPABILITY })).rejects.toMatchObject({ reason: 'delete-forbidden' });
 		expect(calls).toHaveLength(0);
 	});
@@ -314,5 +320,115 @@ describe('conflict check', () => {
 		expect(err).toBeInstanceOf(ConflictError);
 		expect(calls.map((c) => c.method)).toEqual(['GET']);
 		expect(rows()[0].result).toBe('conflict');
+	});
+});
+
+describe('contact.birthday (PUT, fetch-merge-send)', () => {
+	const CONTACT = {
+		data: {
+			id: 7, object: 'contact', first_name: 'Ada', last_name: 'Lovelace', nickname: 'Countess', description: 'Mathematician',
+			gender: 'Woman', is_dead: false,
+			information: { dates: { birthdate: { is_age_based: null, is_year_unknown: null, date: null }, deceased_date: { is_age_based: null, is_year_unknown: null, date: null } } },
+			updated_at: '2026-11-20T10:00:00Z'
+		}
+	};
+	const changes = { is_birthdate_known: true, birthdate_day: 10, birthdate_month: 12, birthdate_year: 1990, birthdate_is_age_based: false, birthdate_add_reminder: true };
+	const run = (current: { data: Record<string, unknown> } = CONTACT, opts: { readOnly?: boolean } = {}) =>
+		setup({ readOnly: opts.readOnly ?? false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: current }, { body: { data: { ...current.data, updated_at: 'later' } } }] });
+
+	it('reads the contact, then PUTs the birthday plus everything Monica would otherwise blank', async () => {
+		const { guards, calls, rows } = run();
+		await guards.update('contact.birthday', 7, changes, CONTACT.data.updated_at);
+		expect(calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual(['GET /api/contacts/7', 'PUT /api/contacts/7']);
+		expect(calls[1].body).toEqual({
+			first_name: 'Ada',
+			description: 'Mathematician',
+			is_deceased: false,
+			is_deceased_date_known: false,
+			...changes
+		});
+		// last name, nickname and gender are not sent, so Monica leaves them as they are
+		for (const k of ['last_name', 'nickname', 'gender_id', 'middle_name']) expect(calls[1].body).not.toHaveProperty(k);
+		expect(JSON.parse(rows()[0].beforeJson!)).toEqual(CONTACT.data);
+	});
+
+	it('keeps a deceased date exactly', async () => {
+		const dead = { data: { ...CONTACT.data, is_dead: true, information: { dates: { ...CONTACT.data.information.dates, deceased_date: { is_age_based: false, is_year_unknown: false, date: '2020-06-05T00:00:00Z' } } } } };
+		const { guards, calls } = run(dead);
+		await guards.update('contact.birthday', 7, changes, CONTACT.data.updated_at);
+		expect(calls[1].body).toMatchObject({ is_deceased: true, is_deceased_date_known: true, deceased_date_day: 5, deceased_date_month: 6, deceased_date_year: 2020 });
+	});
+
+	it('refuses to overwrite an existing birthday, and sends no PUT', async () => {
+		const has = { data: { ...CONTACT.data, information: { dates: { ...CONTACT.data.information.dates, birthdate: { is_age_based: false, is_year_unknown: false, date: '1991-01-01T00:00:00Z' } } } } };
+		const { guards, calls, rows } = run(has);
+		await expect(guards.update('contact.birthday', 7, changes, CONTACT.data.updated_at)).rejects.toMatchObject({ reason: 'precondition' });
+		expect(calls.map((c) => c.method)).toEqual(['GET']);
+		expect(rows()[0].result).toBe('refused:precondition');
+	});
+
+	it('only birthday fields may be changed', async () => {
+		const { guards, calls } = run();
+		await expect(guards.update('contact.birthday', 7, { first_name: 'Eve' }, CONTACT.data.updated_at)).rejects.toMatchObject({ reason: 'field-not-editable' });
+		await expect(guards.update('contact.birthday', 7, { description: 'x' }, CONTACT.data.updated_at)).rejects.toMatchObject({ reason: 'field-not-editable' });
+		expect(calls).toHaveLength(0);
+	});
+
+	it('conflict: the contact changed since the page loaded, nothing is sent', async () => {
+		const { guards, calls } = run();
+		await expect(guards.update('contact.birthday', 7, changes, '2026-01-01T00:00:00Z')).rejects.toBeInstanceOf(ConflictError);
+		expect(calls.map((c) => c.method)).toEqual(['GET']);
+	});
+
+	it('read-only refuses before reading anything', async () => {
+		const { guards, calls } = run(CONTACT, { readOnly: true });
+		await expect(guards.update('contact.birthday', 7, changes, 'x')).rejects.toMatchObject({ reason: 'read-only' });
+		expect(calls).toHaveLength(0);
+	});
+});
+
+describe('tags (POST setTags / unsetTag, one contact, one tag per request)', () => {
+	const reply = { data: { id: 7, object: 'contact', tags: [{ id: 3, name: 'Paris' }] } };
+	const run = (readOnly = false) => setup({ readOnly, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: reply }] });
+
+	it('adds one tag by name to one contact', async () => {
+		const { guards, calls, rows } = run();
+		await guards.create('contact.tags.add', { tags: ['Paris'] }, 7);
+		expect(calls[0]).toMatchObject({ method: 'POST', body: { tags: ['Paris'] } });
+		expect(new URL(calls[0].url).pathname).toBe('/api/contacts/7/setTags');
+		expect(rows()[0]).toMatchObject({ endpoint: '/api/contacts/7/setTags', monicaId: 7, result: 'ok' });
+	});
+
+	it('removes one tag by id from one contact (the tag itself stays in Monica)', async () => {
+		const { guards, calls } = run();
+		await guards.create('contact.tags.remove', { tags: [3] }, 7);
+		expect(new URL(calls[0].url).pathname).toBe('/api/contacts/7/unsetTag');
+		expect(calls[0].body).toEqual({ tags: [3] });
+	});
+
+	it('refuses malformed bodies: several tags, empty names, wrong types, missing contact', async () => {
+		const { guards, calls } = run();
+		for (const body of [{ tags: ['A', 'B'] }, { tags: [''] }, { tags: [' '] }, { tags: [3] }, { tags: 'Paris' }, {}]) {
+			await expect(guards.create('contact.tags.add', body as Record<string, unknown>, 7)).rejects.toBeInstanceOf(WriteRefusedError);
+		}
+		await expect(guards.create('contact.tags.remove', { tags: ['Paris'] }, 7)).rejects.toBeInstanceOf(WriteRefusedError);
+		await expect(guards.create('contact.tags.add', { tags: ['Paris'] })).rejects.toBeInstanceOf(WriteRefusedError); // no contact id
+		expect(calls).toHaveLength(0);
+	});
+
+	it('read-only refuses', async () => {
+		const { guards, calls } = run(true);
+		await expect(guards.create('contact.tags.add', { tags: ['Paris'] }, 7)).rejects.toMatchObject({ reason: 'read-only' });
+		expect(calls).toHaveLength(0);
+	});
+});
+
+describe('journal.create (POST /api/journal)', () => {
+	it('sends only title and post', async () => {
+		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: { data: { id: 5, object: 'entry' } } }] });
+		await guards.create('journal.create', { title: 'Whistler', post: 'Great hike' });
+		expect(calls[0]).toMatchObject({ method: 'POST', body: { title: 'Whistler', post: 'Great hike' } });
+		await expect(guards.create('journal.create', { title: 'x', post: 'y', date: '2026-01-01' })).rejects.toMatchObject({ reason: 'field-not-editable' });
+		await expect(guards.create('journal.create', { title: 'x', post: 'y' }, 3)).rejects.toBeInstanceOf(WriteRefusedError); // no id on this path
 	});
 });

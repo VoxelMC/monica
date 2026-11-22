@@ -46,7 +46,7 @@
 					</div>
 					<p class="text-sm text-muted">{item.kind === 'journal' ? 'Journal' : (item.type ?? 'Hangout')}</p>
 					{#if item.people.length}
-						<p class="mt-1 text-sm">
+						<p class="mt-1 text-sm">{#if item.kind === 'journal'}<span class="text-muted">Mentions: </span>{/if}
 							{#each item.people as p, i (p.id)}<a href="/contacts/{p.id}" class="text-accent">{p.name}</a>{i < item.people.length - 1 ? ', ' : ''}{/each}
 						</p>
 					{/if}
@@ -84,7 +84,7 @@
 		updatedAt={removing.updatedAt ?? ''}
 		title={removing.title}
 		details={[fullDate(removing.date), removing.people.map((p) => p.name).join(', '), removing.body ?? '']}
-		warning={removing.kind === 'hangout' && removing.people.length > 1 ? `It disappears for all ${removing.people.length} people who were there. Notes written about them stay.` : removing.kind === 'hangout' ? 'Notes written about them stay.' : ''}
+		warning={removing.kind === 'journal' ? (removing.people.length ? 'orbit also forgets which people it mentioned.' : '') : removing.kind === 'hangout' && removing.people.length > 1 ? `It disappears for all ${removing.people.length} people who were there. Notes written about them stay.` : removing.kind === 'hangout' ? 'Notes written about them stay.' : ''}
 		onclose={() => (removing = null)}
 		ondone={(r) => ((notice = r), (removing = null))}
 	/>

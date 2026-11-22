@@ -44,7 +44,6 @@ export function checkBirthday(b: Partial<NewBirthday>, today = new Date()): stri
 export function birthdayPayload(base: BirthdayBase, b: NewBirthday) {
 	return {
 		first_name: base.firstName,
-		...(base.genderId != null ? { gender_id: base.genderId } : {}),
 		description: base.description,
 		is_birthdate_known: true,
 		birthdate_day: b.day,
@@ -57,5 +56,48 @@ export function birthdayPayload(base: BirthdayBase, b: NewBirthday) {
 		...(base.deceased
 			? { deceased_date_day: base.deceased.day, deceased_date_month: base.deceased.month, deceased_date_year: base.deceased.year }
 			: {})
+	};
+}
+
+type Json = Record<string, unknown>;
+const datePart = (v: unknown) => {
+	const d = (v as { date?: string | null } | null | undefined)?.date;
+	const m = d ? /^(\d{4})-(\d{2})-(\d{2})/.exec(d) : null;
+	return m ? { year: +m[1], month: +m[2], day: +m[3], yearUnknown: !!(v as { is_year_unknown?: boolean }).is_year_unknown } : null;
+};
+
+/** True if Monica already has a birthday for this contact (GET /api/contacts/{id} data). */
+export function contactHasBirthday(current: Json): boolean {
+	const info = current.information as { dates?: { birthdate?: unknown } } | undefined;
+	return datePart(info?.dates?.birthdate) !== null;
+}
+
+/**
+ * The fields Monica's UpdateContact always rewrites, taken from the contact as it is
+ * now (fresh GET), so a birthday update changes nothing else. Name fields other than
+ * the required first_name, and gender, are left out: Monica keeps unsent ones.
+ */
+export function basePayloadFromContact(current: Json): Json {
+	if (typeof current.first_name !== 'string' || !current.first_name) throw new Error('Contact has no first name');
+	const info = current.information as { dates?: { deceased_date?: unknown } } | undefined;
+	const dd = datePart(info?.dates?.deceased_date);
+	return {
+		first_name: current.first_name,
+		description: (current.description as string | null | undefined) ?? null,
+		is_deceased: !!current.is_dead,
+		is_deceased_date_known: dd !== null,
+		...(dd ? { deceased_date_day: dd.day, deceased_date_month: dd.month, deceased_date_year: dd.yearUnknown ? null : dd.year } : {})
+	};
+}
+
+/** The birthday part of the update (merged over basePayloadFromContact). */
+export function birthdayChanges(b: NewBirthday) {
+	return {
+		is_birthdate_known: true,
+		birthdate_day: b.day,
+		birthdate_month: b.month,
+		birthdate_year: b.year,
+		birthdate_is_age_based: false,
+		birthdate_add_reminder: true
 	};
 }

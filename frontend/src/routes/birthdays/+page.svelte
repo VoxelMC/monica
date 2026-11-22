@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import Avatar from '#lib/components/Avatar.svelte';
 	import { birthdayPayload, checkBirthday, daysInMonth, type NewBirthday } from '#lib/birthday-write.js';
@@ -48,6 +49,13 @@
 		})
 	);
 	let previewOpen = $state(false);
+	let saving = $state(false);
+	let outcome = $state<{ ok: boolean; message: string; saved: number[] } | null>(null);
+	const draftJson = $derived(
+		JSON.stringify({
+			entries: ready.map((c) => ({ id: c.id, ...(parsed(c.id) as NewBirthday), updatedAt: c.updatedAt ?? '' }))
+		})
+	);
 
 	// ?contact=ID (from a contact page): jump to that person's row
 	const focusId = Number(page.url.searchParams.get('contact')) || null;
@@ -66,6 +74,11 @@
 
 <div class="mx-auto max-w-3xl px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-32 lg:px-8">
 	<h1 class="pt-2 pb-1 text-2xl font-semibold">Birthdays</h1>
+	{#if outcome}
+		<p class="my-3 rounded-[var(--radius-card)] border p-3 text-sm {outcome.ok ? 'border-accent-solid bg-accent-soft text-on-accent-soft' : 'border-attention text-attention'}" role="status" data-testid="birthday-outcome">
+			{outcome.message} <a class="underline" href="/audit">Audit log</a>
+		</p>
+	{/if}
 	<p class="mb-6 text-sm text-muted">{year.length} in the year ahead · {missing.length} {missing.length === 1 ? 'person has' : 'people have'} none yet</p>
 
 	<section class="mb-10" aria-labelledby="year-h">
@@ -142,17 +155,17 @@
 			<p class="text-sm"><span class="font-semibold">{ready.length}</span> {ready.length === 1 ? 'birthday' : 'birthdays'} ready</p>
 			<div class="flex gap-2">
 				<button type="button" class="h-9 rounded-[var(--radius-input)] border border-accent-solid px-4 text-accent" onclick={() => (previewOpen = true)}>Preview</button>
-				<button type="button" disabled class="h-9 rounded-[var(--radius-input)] bg-surface-2 px-4 text-muted" title="Arrives with writes (slice 4)">Save</button>
+				<button type="button" class="h-9 rounded-[var(--radius-input)] bg-accent-solid px-4 font-semibold text-on-accent" onclick={() => (previewOpen = true)}>Save…</button>
 			</div>
 		</div>
-		<p class="mx-auto mt-1 max-w-3xl text-xs text-muted">Saving arrives with writes (slice 4).</p>
+		{#if data.readOnly || data.dryRun}<p class="mx-auto mt-1 max-w-3xl text-xs text-muted">{data.readOnly ? 'orbit is read-only right now, so saving will be refused.' : 'Dry run is on: nothing will reach Monica.'}</p>{/if}
 	</div>
 {/if}
 
 {#if previewOpen}
 	<div class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal="true" aria-label="Preview">
 		<div class="max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-t-[var(--radius-card)] bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-[var(--radius-card)]">
-			<h2 class="text-lg font-semibold">This would be sent to Monica</h2>
+			<h2 class="text-lg font-semibold">Save {requests.length} {requests.length === 1 ? 'birthday' : 'birthdays'} to Monica?</h2>
 			<p class="mt-1 text-sm text-muted">One update per person. Only the birthday changes; the other fields are sent back exactly as they are, because Monica would otherwise clear them.</p>
 			<ol class="mt-3 flex flex-col gap-3" data-testid="preview">
 				{#each requests as r, i (r.path)}
@@ -163,8 +176,30 @@
 					</li>
 				{/each}
 			</ol>
-			<p class="mt-2 text-sm text-muted">Nothing has been sent.</p>
-			<button type="button" class="mt-3 h-11 w-full rounded-[var(--radius-input)] bg-accent-solid font-semibold text-on-accent" onclick={() => (previewOpen = false)}>Back</button>
+			<p class="mt-2 text-sm text-muted">Nothing has been sent yet. Each contact is read again just before saving; anyone who already has a birthday, or changed in the meantime, is left alone.</p>
+			<form
+				method="POST"
+				action="?/save"
+				use:enhance={() => {
+					saving = true;
+					return async ({ result, update }) => {
+						saving = false;
+						previewOpen = false;
+						const d = (result.type === 'success' || result.type === 'failure' ? result.data : null) as typeof outcome;
+						outcome = d ?? { ok: false, message: 'Something went wrong; some birthdays may not have been saved. Check the audit log.', saved: [] };
+						const savedIds = new Set(outcome.saved);
+						entries = Object.fromEntries(Object.entries(entries).filter(([id]) => !savedIds.has(Number(id))));
+						await update({ reset: false });
+						window.scrollTo({ top: 0 });
+					};
+				}}
+			>
+				<input type="hidden" name="draft" value={draftJson} />
+				<button type="submit" disabled={saving} class="mt-3 h-11 w-full rounded-[var(--radius-input)] bg-accent-solid font-semibold text-on-accent disabled:opacity-60">
+					{saving ? 'Saving…' : `Save to Monica (${requests.length})`}
+				</button>
+			</form>
+			<button type="button" disabled={saving} class="mt-2 h-11 w-full rounded-[var(--radius-input)] border border-control" onclick={() => (previewOpen = false)}>Back</button>
 		</div>
 	</div>
 {/if}

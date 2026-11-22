@@ -279,20 +279,49 @@ test('birthdays: quick entry validates, previews the exact request, cannot save'
 	await expect(row).toContainText('does not exist');
 	await row.getByLabel(`Year for ${name} (optional)`).fill('2000');
 	await expect(row).toContainText('Ready');
-	await page.getByTestId('birthday-bar').getByRole('button', { name: 'Preview' }).click();
+	await page.getByTestId('birthday-bar').getByRole('button', { name: 'Save…' }).click();
 	const pre = page.getByTestId('preview');
 	await expect(pre).toContainText('PUT /api/contacts/');
 	await expect(pre).toContainText('"birthdate_month": 2');
 	await expect(pre).toContainText('"birthdate_day": 29');
 	await expect(pre).not.toContainText('last_name');
-	await page.getByRole('button', { name: 'Back' }).click();
-	await expect(page.getByTestId('birthday-bar').getByRole('button', { name: 'Save' })).toBeDisabled();
+	// read-only dev server: refused, nothing saved
+	await page.getByRole('button', { name: /Save to Monica/ }).click();
+	await expect(page.getByTestId('birthday-outcome')).toContainText('read-only');
 	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });
 
-test('birthdays page has no server action (POST is refused)', async ({ request }) => {
-	const res = await request.post('/birthdays', { form: { x: '1' }, headers: { origin: 'http://127.0.0.1:5173' } });
-	expect([403, 404, 405]).toContain(res.status());
+test('birthdays: only the save action exists; malformed drafts are rejected', async ({ request }) => {
+	const other = await request.post('/birthdays', { form: { x: '1' }, headers: { origin: 'http://127.0.0.1:5173' } });
+	expect(other.status()).toBeGreaterThanOrEqual(400);
+	const bad = await request.post('/birthdays?/save', { form: { draft: '{"entries":"nope"}' }, headers: { origin: 'http://127.0.0.1:5173' } });
+	expect(bad.status()).toBe(400);
+});
+
+test('bulk tags: picker previews who changes; read-only refuses', async ({ page }) => {
+	await page.goto('/contacts');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Select', exact: true }).click();
+	const cards = page.getByTestId('contact-card');
+	await cards.nth(0).click();
+	await cards.nth(1).click();
+	await page.getByTestId('bulk-bar').getByRole('button', { name: 'Add tag…' }).click();
+	const dialog = page.getByRole('dialog');
+	await dialog.getByRole('textbox', { name: 'Tag' }).fill('orbit-e2e-tag');
+	await expect(dialog.getByTestId('tag-preview')).toContainText('to 2 people');
+	await dialog.getByRole('button', { name: 'Add to 2 people' }).click();
+	await expect(page.getByRole('status').first()).toContainText('read-only');
+});
+
+test('journal: save is offered and refused while read-only', async ({ page }) => {
+	await page.goto('/log?kind=journal');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Title').fill('e2e entry');
+	await page.getByRole('textbox', { name: 'Entry', exact: true }).fill('Nothing to see');
+	await page.getByRole('button', { name: 'Review and save' }).click();
+	await expect(page.getByTestId('preview')).toContainText('POST /api/journal');
+	await page.getByRole('button', { name: /Save to Monica/ }).click();
+	await expect(page.getByTestId('save-outcome')).toContainText('read-only');
 });
 
 test('contact page: notes have their own section, separate from the timeline', async ({ page }) => {

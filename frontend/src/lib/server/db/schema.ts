@@ -14,3 +14,13 @@ export const auditLog = sqliteTable('audit_log', {
 	// pending | ok | dry-run | refused:<reason> | conflict | error:<detail>
 	result: text('result').notNull()
 });
+
+// Journal mentions (2026-11-23): Monica stores the entry text with a readable
+// "@Full Name"; orbit stores which contact each mention meant (exact links).
+export const journalMentions = sqliteTable('journal_mentions', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	journalEntryId: integer('journal_entry_id').notNull(),
+	monicaContactId: integer('monica_contact_id').notNull(),
+	name: text('name').notNull(),
+	createdAt: text('created_at').notNull()
+});

@@ -81,3 +81,9 @@ export async function listOpenTasks(client: MonicaClient) {
 		}))
 		.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
+
+/** Tags with their ids (GET /api/tags), for removing a tag by id. */
+export async function listTags(client: MonicaClient): Promise<{ id: number; name: string }[]> {
+	const tags = await client.getAll('/api/tags', tag);
+	return tags.map((t) => ({ id: t.id, name: t.name }));
+}

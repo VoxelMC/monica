@@ -48,7 +48,7 @@ export class MonicaValidationError extends MonicaError {
 /** A write was refused by orbit before anything was sent. */
 export class WriteRefusedError extends Error {
 	constructor(
-		readonly reason: 'read-only' | 'delete-forbidden' | 'not-allowlisted' | 'field-not-editable' | 'bad-path',
+		readonly reason: 'read-only' | 'delete-forbidden' | 'not-allowlisted' | 'field-not-editable' | 'bad-path' | 'invalid-body' | 'precondition',
 		message: string
 	) {
 		super(message);

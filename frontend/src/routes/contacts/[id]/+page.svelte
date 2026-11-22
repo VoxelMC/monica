@@ -268,6 +268,20 @@
 					<p class="text-sm text-muted">No notes yet.</p>
 				{/if}
 			{/snippet}
+			{#if data.mentionedIn.length}
+				{#snippet mentionedBody()}
+					<ul class="flex flex-col gap-1" data-testid="mentioned-in">
+						{#each data.mentionedIn as e (e.id)}
+							<li class="flex items-baseline justify-between gap-3 text-sm">
+								<a href="/diary" class="truncate text-accent">{e.title}</a>
+								<time class="shrink-0 text-xs text-muted" datetime={e.date} title={fullDate(e.date)}>{relativeDate(e.date)}</time>
+							</li>
+						{/each}
+					</ul>
+				{/snippet}
+				{@render card('Mentioned in journal', mentionedBody)}
+			{/if}
+
 			<details open={notesOpen} ontoggle={toggleNotes} class="group rounded-[var(--radius-card)] border border-line bg-surface" data-testid="notes-section">
 				<summary class="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-base font-semibold select-none [&::-webkit-details-marker]:hidden">
 					<span>Notes{#if notes.length}<span class="ml-2 rounded-[var(--radius-chip)] bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">{notes.length}</span>{/if}</span>

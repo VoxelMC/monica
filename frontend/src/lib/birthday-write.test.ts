@@ -7,7 +7,6 @@ describe('birthday payload', () => {
 	it('sets the birthday and resends what Monica would otherwise overwrite', () => {
 		expect(birthdayPayload(base, { month: 3, day: 11, year: 2001 })).toEqual({
 			first_name: 'Ana',
-			gender_id: 2,
 			description: 'Met in Paris',
 			is_birthdate_known: true,
 			birthdate_day: 11,
@@ -19,15 +18,14 @@ describe('birthday payload', () => {
 			is_deceased_date_known: false
 		});
 	});
-	it('never sends last name, nickname or middle name (Monica leaves unsent ones as they are)', () => {
+	it('never sends last name, nickname, middle name or gender (Monica leaves unsent ones as they are)', () => {
 		const p = birthdayPayload(base, { month: 1, day: 2, year: null }) as Record<string, unknown>;
-		for (const k of ['last_name', 'middle_name', 'nickname']) expect(p).not.toHaveProperty(k);
+		for (const k of ['last_name', 'middle_name', 'nickname', 'gender_id']) expect(p).not.toHaveProperty(k);
 		expect(p.birthdate_year).toBeNull();
 	});
 	it('keeps an existing deceased date and an empty description', () => {
 		const p = birthdayPayload({ ...base, description: null, genderId: null, isDead: true, deceased: { day: 5, month: 6, year: 2020 } }, { month: 1, day: 2, year: 1950 });
 		expect(p).toMatchObject({ description: null, is_deceased: true, is_deceased_date_known: true, deceased_date_day: 5, deceased_date_month: 6, deceased_date_year: 2020 });
-		expect(p).not.toHaveProperty('gender_id');
 	});
 });
 

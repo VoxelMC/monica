@@ -187,7 +187,7 @@
 		<div class="mb-4 rounded-[var(--radius-card)] border p-3 text-sm {outcome.ok ? 'border-accent-solid bg-accent-soft text-on-accent-soft' : 'border-attention text-attention'}" role="status" data-testid="save-outcome">
 			<p class="font-semibold">{outcome.message}</p>
 			{#if outcome.ok && savedPeople.length}
-				<p class="mt-1">Open: {#each savedPeople as p (p.id)}<a class="underline" href="/contacts/{p.id}">{p.name}</a> · {/each}<a class="underline" href="/diary">Diary</a></p>
+				<p class="mt-1">Open: {#each savedPeople as p (p.id)}<a class="underline" href="/contacts/{p.id}">{p.name}</a>{' · '}{/each}<a class="underline" href="/diary">Diary</a></p>
 			{/if}
 			<p class="mt-1"><a class="underline" href="/audit">Audit log</a></p>
 		</div>
@@ -346,8 +346,10 @@
 					You’ll see exactly what will be sent before anything is saved.{#if data.readOnly} orbit is read-only right now, so saving will be refused.{:else if data.dryRun} Dry run is on: nothing will reach Monica.{/if}
 				</p>
 			{:else}
-				<button type="submit" class="min-h-12 rounded-[var(--radius-input)] border border-accent-solid font-medium text-accent">Preview</button>
-				<p class="text-center text-sm text-muted">Saving journal entries comes next. Preview shows exactly what will be sent.</p>
+				<button type="submit" class="min-h-12 rounded-[var(--radius-input)] bg-accent-solid font-semibold text-on-accent">Review and save</button>
+				<p class="text-center text-sm text-muted">
+					Monica dates journal entries the day they are saved.{#if data.readOnly} orbit is read-only right now, so saving will be refused.{/if}
+				</p>
 			{/if}
 		</div>
 	</form>
@@ -356,7 +358,7 @@
 {#if previewOpen}
 	<div class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal="true" aria-label="Preview">
 		<div class="max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-t-[var(--radius-card)] bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-[var(--radius-card)]">
-			<h2 class="text-lg font-semibold">{kind === 'hangout' ? 'Save this to Monica?' : 'This would be sent to Monica'}</h2>
+			<h2 class="text-lg font-semibold">Save this to Monica?</h2>
 			<p class="mt-1 text-sm text-muted">{requests.length} {requests.length === 1 ? 'request' : 'requests'}, in this order. The activity appears on each person’s timeline.</p>
 			<ol class="mt-3 flex flex-col gap-3" data-testid="preview">
 				{#each requests as r, i (i)}
@@ -371,10 +373,10 @@
 				<p class="mt-3 text-sm">Then orbit links the entry to {mentions.map((m) => m.name).join(', ')} in its own database (nothing extra in Monica).</p>
 			{/if}
 			<p class="mt-2 text-sm text-muted">Nothing has been sent yet.</p>
-			{#if kind === 'hangout'}
+			{#if kind === 'hangout' || kind === 'journal'}
 				<form
 					method="POST"
-					action="?/hangout"
+					action={kind === 'hangout' ? '?/hangout' : '?/journal'}
 					use:enhance={() => {
 						saving = true;
 						const who = picked.map((c) => ({ id: c.id, name: c.name }));
@@ -383,13 +385,19 @@
 							previewOpen = false;
 							const d = (result.type === 'success' || result.type === 'failure' ? result.data : null) as typeof outcome;
 							outcome = d ?? { ok: false, message: 'Something went wrong; nothing may have been saved. Check the audit log.', activityId: null, notes: [], dryRun: false };
-							savedPeople.splice(0, savedPeople.length, ...(outcome.ok ? who : []));
-							if (outcome.ok) resetForm();
+							savedPeople.splice(0, savedPeople.length, ...(outcome.ok ? (kind === 'journal' ? mentions.map((m) => ({ id: m.contactId, name: m.name })) : who) : []));
+							if (outcome.ok) {
+								if (kind === 'journal') {
+									title = '';
+									post = '';
+									picks = [];
+								} else resetForm();
+							}
 							window.scrollTo({ top: 0 });
 						};
 					}}
 				>
-					<input type="hidden" name="draft" value={draftJson} />
+					<input type="hidden" name="draft" value={kind === 'hangout' ? draftJson : JSON.stringify({ title, post, mentions })} />
 					<button type="submit" disabled={saving} class="mt-3 min-h-12 w-full rounded-[var(--radius-input)] bg-accent-solid font-semibold text-on-accent disabled:opacity-60">
 						{saving ? 'Saving…' : `Save to Monica (${requests.length} ${requests.length === 1 ? 'request' : 'requests'})`}
 					</button>

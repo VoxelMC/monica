@@ -14,6 +14,7 @@
 
 import type { AuditLog } from '../audit';
 import { assertApiPath, type Transport } from './client';
+import { basePayloadFromContact, contactHasBirthday } from '../../birthday-write';
 import { DELETE_CAPABILITY } from './delete-capability';
 import { ConflictError, WriteRefusedError } from './errors';
 
@@ -36,7 +37,20 @@ export interface WriteRule {
 	toPayload?: (current: Json) => Json;
 	/** PUT only: where to GET the current record. Defaults to `path`. */
 	readPath?: string;
+	/** Shape check for the body (beyond allowed field names); returns a reason to refuse. */
+	validate?: (body: Json) => string | null;
+	/** PUT only: refuse after reading the current record (e.g. "already has a birthday"). */
+	refuseIf?: (current: Json) => string | null;
 }
+
+const oneTagName = (b: Json) => {
+	const t = b.tags;
+	return Array.isArray(t) && t.length === 1 && typeof t[0] === 'string' && t[0].trim().length > 0 && t[0].length <= 255 ? null : 'exactly one tag name';
+};
+const oneTagId = (b: Json) => {
+	const t = b.tags;
+	return Array.isArray(t) && t.length === 1 && Number.isInteger(t[0]) && (t[0] as number) > 0 ? null : 'exactly one tag id';
+};
 
 /**
  * The write allowlist. Before adding an entry: write its guard test, run it on
@@ -57,7 +71,32 @@ export const WRITE_ALLOWLIST: readonly WriteRule[] = [
 	// Removing (owner decision 2026-11-23): confirmed in the UI, record saved to the audit log first
 	{ key: 'activity.delete', method: 'DELETE', path: '/api/activities/{id}', editableFields: [] },
 	{ key: 'note.delete', method: 'DELETE', path: '/api/notes/{id}', editableFields: [] },
-	{ key: 'journal.delete', method: 'DELETE', path: '/api/journal/{id}', editableFields: [] }
+	{ key: 'journal.delete', method: 'DELETE', path: '/api/journal/{id}', editableFields: [] },
+	// Birthdays (2026-11-23): only the birthday fields; everything Monica's UpdateContact would
+	// otherwise blank is taken from a fresh GET. Never overwrites an existing birthday.
+	{
+		key: 'contact.birthday',
+		method: 'PUT',
+		path: '/api/contacts/{id}',
+		editableFields: ['is_birthdate_known', 'birthdate_day', 'birthdate_month', 'birthdate_year', 'birthdate_is_age_based', 'birthdate_add_reminder'],
+		toPayload: basePayloadFromContact,
+		refuseIf: (current) => (contactHasBirthday(current) ? 'this contact already has a birthday in Monica' : null)
+	},
+	// Bulk tags (2026-11-23): one tag on one contact per request. setTags only adds;
+	// unsetTag only detaches (the tag stays in Monica). unsetTags (all tags) is never allowed.
+	{ key: 'contact.tags.add', method: 'POST', path: '/api/contacts/{id}/setTags', editableFields: ['tags'], validate: oneTagName },
+	{ key: 'contact.tags.remove', method: 'POST', path: '/api/contacts/{id}/unsetTag', editableFields: ['tags'], validate: oneTagId },
+	// Journal entries (2026-11-23): Monica accepts only title and post (the date is the day it is saved)
+	{
+		key: 'journal.create',
+		method: 'POST',
+		path: '/api/journal',
+		editableFields: ['title', 'post'],
+		validate: (b) =>
+			typeof b.title === 'string' && b.title.trim() && b.title.length <= 255 && typeof b.post === 'string' && b.post.trim() && b.post.length <= 1_000_000
+				? null
+				: 'title (up to 255 characters) and text are required'
+	}
 ];
 
 export interface GuardOptions {
@@ -80,7 +119,8 @@ export interface WriteResult {
 }
 
 export interface Guards {
-	create(key: string, body: Json): Promise<WriteResult>;
+	/** `id` fills `{id}` in the rule's path (e.g. the contact for setTags). */
+	create(key: string, body: Json, id?: number): Promise<WriteResult>;
 	update(key: string, id: number, changes: Json, expectedUpdatedAt: string): Promise<WriteResult>;
 	/** Remove one allowlisted record; the full record is saved to the audit log first. */
 	remove(key: string, id: number, expectedUpdatedAt: string): Promise<WriteResult>;
@@ -152,8 +192,17 @@ export function createGuards(opts: GuardOptions): Guards {
 				if (opts.readOnly) checkWrite(method, path, { readOnly: true, allowlist });
 				throw new WriteRefusedError('not-allowlisted', `No ${method} rule "${key}" on the write allowlist`);
 			}
+			if (opts.readOnly) checkWrite(method, path, { readOnly: true, allowlist });
+			const needsId = rule.path.includes('{id}');
+			if (needsId !== (id !== null && Number.isInteger(id) && id > 0)) {
+				throw new WriteRefusedError('bad-path', needsId ? `${rule.key} needs a record id` : `${rule.key} takes no record id`);
+			}
 			checkWrite(method, path, { readOnly: opts.readOnly, allowlist });
 			assertFields(rule, fields);
+			if (method !== 'DELETE' && rule.validate) {
+				const why = rule.validate(fields);
+				if (why) throw new WriteRefusedError('invalid-body', `${rule.key}: ${why}`);
+			}
 			if (method === 'PUT' && !rule.toPayload) {
 				throw new WriteRefusedError('not-allowlisted', `${rule.key} has no toPayload mapping`);
 			}
@@ -187,9 +236,9 @@ export function createGuards(opts: GuardOptions): Guards {
 	}
 
 	return {
-		async create(key, body) {
-			const { path } = precheck('POST', key, null, body);
-			return send('POST', path, null, null, { ...body });
+		async create(key, body, id) {
+			const { path } = precheck('POST', key, id ?? null, body);
+			return send('POST', path, id ?? null, null, { ...body });
 		},
 
 		async update(key, id, changes, expectedUpdatedAt) {
@@ -204,6 +253,13 @@ export function createGuards(opts: GuardOptions): Guards {
 			if (current.updated_at !== expectedUpdatedAt) {
 				audit.start({ method: 'PUT', endpoint: path, monicaId: id, before: current, dryRun: opts.dryRun, result: 'conflict' });
 				throw new ConflictError(path, expectedUpdatedAt, current.updated_at);
+			}
+
+			// Rule-specific refusal on the current record (e.g. never overwrite a birthday)
+			const why = rule.refuseIf?.(current);
+			if (why) {
+				audit.start({ method: 'PUT', endpoint: path, monicaId: id, before: current, dryRun: opts.dryRun, result: 'refused:precondition' });
+				throw new WriteRefusedError('precondition', `${rule.key}: ${why}`);
 			}
 
 			// Merge: full payload from the current record, then only the edited fields.

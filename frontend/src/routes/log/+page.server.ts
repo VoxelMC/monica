@@ -1,10 +1,11 @@
 import { error, fail } from '@sveltejs/kit';
 import { todayIso } from '#lib/log.js';
+import { saveJournal } from '#lib/server/journal-save.js';
 import { saveHangout } from '#lib/server/log-write.js';
 import { listContacts } from '#lib/server/monica/contacts.js';
 import { listActivityTypes } from '#lib/server/monica/diary.js';
 import { loadErrorMessage } from '#lib/server/monica/errors.js';
-import { getGuards, monica, settings } from '#lib/server/monica/index.js';
+import { getDb, getGuards, monica, settings } from '#lib/server/monica/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
@@ -37,5 +38,17 @@ export const actions: Actions = {
 			tomorrow
 		);
 		return result.ok ? result : fail(result.activityId ? 502 : 400, result);
+	},
+	// Journal entry: readable text to Monica, mention links in orbit's database
+	journal: async ({ request }) => {
+		let raw: unknown;
+		try {
+			raw = JSON.parse(String((await request.formData()).get('draft') ?? ''));
+		} catch {
+			return fail(400, { ok: false, message: 'The form could not be read. Reload the page and try again.', entryId: null, dryRun: false });
+		}
+		const contacts = await listContacts(monica);
+		const result = await saveJournal(getGuards(), getDb(), raw, new Set(contacts.map((c) => c.id)));
+		return result.ok ? result : fail(result.entryId ? 502 : 400, result);
 	}
 };
