@@ -1,75 +1,15 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/lora';
+@import '@fontsource-variable/lora/wght-italic.css';
+@import '@fontsource/libre-baskerville/400.css';
+@import '@fontsource/libre-baskerville/700.css';
+@import '@fontsource-variable/eb-garamond';
 
 /*
- * Design tokens. Every text/background and control/background pair is checked
- * by src/lib/theme.test.ts (WCAG: text >= 4.5:1, controls >= 3:1). Change a
- * colour here and that test tells you if it still passes, in both themes.
+ * Colours come from src/lib/themes.ts: the root layout injects one CSS block per
+ * theme, selected by data-mode / data-light / data-dark on <html> (set from the
+ * prefs cookie). Every theme is contrast-checked by src/lib/themes.test.ts.
  */
-:root {
-	--bg: #f8fafc;
-	--surface: #ffffff;
-	--surface-2: #f1f5f9; /* hover, pressed, quiet chips */
-	--fg: #0f172a; /* body text */
-	--muted: #4b5768; /* secondary text */
-	--line: #e2e8f0; /* decorative borders (cards) */
-	--control: #6b7789; /* input/checkbox outlines */
-	--accent: #0f766e; /* links, active tab */
-	--accent-solid: #0f766e; /* selected chips, primary buttons */
-	--on-accent: #ffffff;
-	--accent-soft: #e6f7f4; /* tag pills */
-	--on-accent-soft: #0b5e57;
-	--attention: #be123c; /* birthday soon */
-	--dot-note: #b45309;
-	--dot-activity: #0f766e;
-	--dot-call: #0369a1;
-	--dot-conversation: #6d28d9;
-	color-scheme: light;
-}
-
-:root[data-theme='dark'] {
-	--bg: #020617;
-	--surface: #0f172a;
-	--surface-2: #1e293b;
-	--fg: #f1f5f9;
-	--muted: #a7b3c4;
-	--line: #1e293b;
-	--control: #6b7a90;
-	--accent: #2dd4bf;
-	--accent-solid: #2dd4bf;
-	--on-accent: #042f2e;
-	--accent-soft: #123b3b;
-	--on-accent-soft: #99f6e4;
-	--attention: #fb7185;
-	--dot-note: #fbbf24;
-	--dot-activity: #2dd4bf;
-	--dot-call: #38bdf8;
-	--dot-conversation: #a78bfa;
-	color-scheme: dark;
-}
-
-@media (prefers-color-scheme: dark) {
-	:root:not([data-theme='light']) {
-		--bg: #020617;
-		--surface: #0f172a;
-		--surface-2: #1e293b;
-		--fg: #f1f5f9;
-		--muted: #a7b3c4;
-		--line: #1e293b;
-		--control: #6b7a90;
-		--accent: #2dd4bf;
-		--accent-solid: #2dd4bf;
-		--on-accent: #042f2e;
-		--accent-soft: #123b3b;
-		--on-accent-soft: #99f6e4;
-		--attention: #fb7185;
-		--dot-note: #fbbf24;
-		--dot-activity: #2dd4bf;
-		--dot-call: #38bdf8;
-		--dot-conversation: #a78bfa;
-		color-scheme: dark;
-	}
-}
-
 @theme inline {
 	--color-bg: var(--bg);
 	--color-surface: var(--surface);
@@ -84,30 +24,49 @@
 	--color-accent-soft: var(--accent-soft);
 	--color-on-accent-soft: var(--on-accent-soft);
 	--color-attention: var(--attention);
-	--color-dot-note: var(--dot-note);
-	--color-dot-activity: var(--dot-activity);
-	--color-dot-call: var(--dot-call);
-	--color-dot-conversation: var(--dot-conversation);
+	--color-dot-note: var(--hue-5);
+	--color-dot-activity: var(--hue-1);
+	--color-dot-call: var(--hue-3);
+	--color-dot-conversation: var(--hue-4);
+	--font-sans: var(--font-body);
+	--font-serif: var(--font-body);
 }
 
 @theme {
-	/* System UI font for now; the owner is choosing a typeface. Change it here only. */
-	--font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif;
-	--radius-card: 12px;
-	--radius-input: 8px;
-	/* Type scale: 13 / 14 / 16 / 18 / 22 / 28 */
-	--text-xs: 0.8125rem;
-	--text-xs--line-height: 1.125rem;
-	--text-sm: 0.875rem;
-	--text-sm--line-height: 1.25rem;
-	--text-base: 1rem;
-	--text-base--line-height: 1.5rem;
-	--text-lg: 1.125rem;
-	--text-lg--line-height: 1.625rem;
-	--text-xl: 1.375rem;
-	--text-xl--line-height: 1.75rem;
-	--text-2xl: 1.75rem;
-	--text-2xl--line-height: 2.125rem;
+	/* Clean lines: small radii everywhere; avatars are rounded squares. */
+	--radius-card: 6px;
+	--radius-input: 4px;
+	--radius-chip: 3px;
+	/* Type: on the smaller side, with clear steps to the headings. 12/13/15/17/20/26 */
+	--text-xs: 0.75rem;
+	--text-xs--line-height: 1rem;
+	--text-sm: 0.8125rem;
+	--text-sm--line-height: 1.2rem;
+	--text-base: 0.9375rem;
+	--text-base--line-height: 1.45rem;
+	--text-lg: 1.0625rem;
+	--text-lg--line-height: 1.5rem;
+	--text-xl: 1.25rem;
+	--text-xl--line-height: 1.6rem;
+	--text-2xl: 1.625rem;
+	--text-2xl--line-height: 2rem;
+}
+
+/* Font choice (Settings), set on <html> as data-font */
+:root,
+:root[data-font='lora'] {
+	--font-body: 'Lora Variable', Georgia, serif;
+}
+:root[data-font='baskerville'] {
+	--font-body: 'Libre Baskerville', Georgia, serif;
+	font-size: 15px; /* Baskerville runs wide; keep the same visual size */
+}
+:root[data-font='garamond'] {
+	--font-body: 'EB Garamond Variable', Garamond, Georgia, serif;
+	font-size: 17px; /* Garamond's small x-height needs a little more size */
+}
+:root[data-font='system'] {
+	--font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 html {
@@ -117,11 +76,19 @@ html {
 body {
 	@apply bg-bg font-sans text-base text-fg antialiased;
 	min-height: 100dvh;
+	font-variant-numeric: lining-nums;
 }
 h1,
-h2 {
-	letter-spacing: -0.015em;
+h2,
+h3 {
+	letter-spacing: -0.01em;
 	text-wrap: balance;
+}
+/* Inputs stay at 16px so phones don't zoom on focus. */
+input,
+select,
+textarea {
+	font-size: max(16px, 1rem);
 }
 ::placeholder {
 	color: var(--muted);
@@ -130,4 +97,7 @@ h2 {
 :focus-visible {
 	outline: 2px solid var(--accent);
 	outline-offset: 2px;
+}
+.tabular {
+	font-variant-numeric: tabular-nums lining-nums;
 }

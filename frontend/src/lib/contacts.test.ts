@@ -122,3 +122,18 @@ describe('tag filters', () => {
 		expect(clipboardList([bob], 'phones').text).toBe('Bob Stone: 604-555-9999');
 	});
 });
+
+describe('letter index', () => {
+	it('letterOf folds accents and buckets non-letters under #', async () => {
+		const { letterOf } = await import('./contacts');
+		expect(letterOf('Émile')).toBe('E');
+		expect(letterOf(' zoe')).toBe('Z');
+		expect(letterOf('42 Club')).toBe('#');
+		expect(letterOf('Øyvind')).toBe('#');
+	});
+	it('groups consecutive names', async () => {
+		const { groupByLetter, sortContacts } = await import('./contacts');
+		const g = groupByLetter(sortContacts(all, 'name'));
+		expect(g.map((x) => [x.letter, x.contacts.length])).toEqual([['A', 1], ['B', 1], ['Z', 1]]);
+	});
+});

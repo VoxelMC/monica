@@ -5,7 +5,7 @@
 	let { data }: PageProps = $props();
 	let filter = $state<'all' | 'hangout' | 'journal'>('all');
 	const shown = $derived(filter === 'all' ? data.items : data.items.filter((i) => i.kind === filter));
-	const chip = 'inline-flex min-h-9 items-center rounded-full border px-3 text-sm';
+	const chip = 'inline-flex min-h-9 items-center rounded-[var(--radius-chip)] border px-3 text-sm';
 </script>
 
 <svelte:head><title>Diary · orbit</title></svelte:head>

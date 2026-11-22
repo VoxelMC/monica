@@ -6,10 +6,10 @@ test('people list loads, search filters, no horizontal scroll', async ({ page })
 	await expect(cards.first()).toBeVisible();
 	const total = await cards.count();
 	expect(total).toBeGreaterThan(0);
-	await expect(page.getByTestId('count')).toHaveText(`${total} people`);
+	await expect(page.getByTestId('count')).toHaveText(`${total}`);
 
 	// Search by a name taken from the first card.
-	const firstName = (await cards.first().locator('p').first().innerText()).split(/\s+/)[0];
+	const firstName = (await cards.first().locator('[data-name]').innerText()).split(/\s+/)[0];
 	await page.getByLabel('Search people').fill(firstName);
 	await expect(page.getByTestId('count')).toContainText('of');
 	await expect(cards.first()).toContainText(firstName);
@@ -38,7 +38,7 @@ test('health page shows read-only on', async ({ page }) => {
 test('tapping a card opens the contact page, back returns to the list', async ({ page }) => {
 	await page.goto('/contacts');
 	const first = page.getByTestId('contact-card').first();
-	const name = (await first.locator('p').first().innerText()).split('“')[0].trim();
+	const name = (await first.locator('[data-name]').evaluate((el) => el.firstChild?.textContent ?? '')).trim();
 	await first.click();
 	await expect(page).toHaveURL(/\/contacts\/\d+$/);
 	await expect(page.getByRole('heading', { level: 1 })).toContainText(name);
@@ -160,5 +160,36 @@ test('home dashboard shows its four sections and links to Health', async ({ page
 	await page.goto('/');
 	for (const id of ['birthdays', 'catch-up', 'tasks', 'recent']) await expect(page.getByTestId(id)).toBeVisible();
 	await expect(page.getByTestId('recent').getByRole('link')).toHaveCount(5);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+});
+
+test('people: switch to lines, the choice is remembered, A–Z index jumps', async ({ page, isMobile }) => {
+	await page.goto('/contacts');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Lines' }).click();
+	await expect(page.getByRole('button', { name: 'Lines' })).toHaveAttribute('aria-pressed', 'true');
+	await page.reload();
+	await page.waitForLoadState('networkidle'); // the index needs JS
+	await expect(page.getByRole('button', { name: 'Lines' })).toHaveAttribute('aria-pressed', 'true');
+	const index = page.getByTestId('az-index');
+	const target = index.locator('button:not([disabled])').last();
+	const letter = (await target.innerText()).trim();
+	await target.click();
+	await expect(page.locator(`#letter-${letter === '#' ? '\\#' : letter}`)).toBeInViewport();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+});
+
+test('settings: picking a theme applies at once and survives a reload', async ({ page }) => {
+	await page.goto('/settings');
+	await page.waitForLoadState('networkidle');
+	await page.getByTestId('dark-themes').getByRole('button', { name: /Everforest Dark/ }).click();
+	await expect(page.locator('html')).toHaveAttribute('data-dark', 'everforest-dark');
+	await expect(page.locator('html')).toHaveAttribute('data-mode', /dark|system/);
+	await page.getByRole('radio', { name: 'EB Garamond' }).click();
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('data-dark', 'everforest-dark');
+	await expect(page.locator('html')).toHaveAttribute('data-font', 'garamond');
+	const bg = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
+	expect(bg.length).toBeGreaterThan(0);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });

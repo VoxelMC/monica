@@ -3,7 +3,9 @@
 declare global {
 	namespace App {
 		// interface Error {}
-		// interface Locals {}
+		interface Locals {
+			prefs: import('#lib/prefs.js').Prefs;
+		}
 		// interface PageData {}
 		// interface PageState {}
 		// interface Platform {}

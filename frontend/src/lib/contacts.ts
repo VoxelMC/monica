@@ -159,3 +159,22 @@ export function fullDate(iso: string): string {
 export function displayName(first: string | null, last: string | null, complete: string): string {
 	return [first, last].filter((s) => s && s.trim()).join(' ') || complete;
 }
+
+export const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'];
+
+/** Index letter for a name: first letter without accents, A-Z, else "#". */
+export function letterOf(name: string): string {
+	const l = fold(name.trim()).charAt(0).toUpperCase();
+	return l >= 'A' && l <= 'Z' ? l : '#';
+}
+
+/** Consecutive groups by index letter (input already sorted by name). */
+export function groupByLetter(list: ContactCard[]): { letter: string; contacts: ContactCard[] }[] {
+	const groups: { letter: string; contacts: ContactCard[] }[] = [];
+	for (const c of list) {
+		const l = letterOf(c.name);
+		if (groups.at(-1)?.letter === l) groups.at(-1)!.contacts.push(c);
+		else groups.push({ letter: l, contacts: [c] });
+	}
+	return groups;
+}

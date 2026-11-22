@@ -22,7 +22,7 @@
 	<section class="rounded-[var(--radius-card)] border border-line bg-surface p-4" data-testid={testid}>
 		<h2 class="mb-2 flex items-center gap-2 text-base font-semibold">
 			{title}
-			{#if count}<span class="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">{count}</span>{/if}
+			{#if count}<span class="rounded-[var(--radius-chip)] bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">{count}</span>{/if}
 		</h2>
 		{@render body()}
 	</section>
@@ -121,5 +121,5 @@
 		{@render section('Recently added or updated', 0, recentBody, 'recent')}
 	</div>
 
-	<p class="mt-6 text-center text-sm lg:hidden"><a href="/health" class="text-muted underline">System health</a></p>
+	<p class="mt-8 flex justify-center gap-6 text-sm lg:hidden"><a href="/settings" class="text-muted underline underline-offset-2">Settings</a><a href="/health" class="text-muted underline underline-offset-2">System health</a></p>
 </div>

@@ -142,7 +142,7 @@
 	const input = 'w-full min-w-0 rounded-[var(--radius-input)] border border-control bg-surface px-3 text-base';
 	const label = 'mb-1 block text-sm font-medium';
 	const err = 'mt-1 text-sm text-attention';
-	const chip = 'inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-sm whitespace-nowrap';
+	const chip = 'inline-flex min-h-9 shrink-0 items-center gap-1 rounded-[var(--radius-chip)] border px-3 text-sm whitespace-nowrap';
 </script>
 
 <svelte:head><title>Log · orbit</title></svelte:head>

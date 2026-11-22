@@ -32,12 +32,12 @@
 		decoding="async"
 		width="80"
 		height="80"
-		class="{size} shrink-0 rounded-full bg-surface-2 object-cover"
+		class="{size} shrink-0 rounded-[22%] bg-surface-2 object-cover"
 		onerror={() => (failed = true)}
 	/>
 {:else}
 	<span
-		class="{size} {text} flex shrink-0 items-center justify-center rounded-full font-semibold"
+		class="{size} {text} flex shrink-0 items-center justify-center rounded-[22%] font-semibold"
 		style:background-color={color}
 		style:color={textColor(color)}
 		aria-hidden="true"

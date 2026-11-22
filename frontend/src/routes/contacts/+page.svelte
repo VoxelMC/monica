@@ -5,6 +5,8 @@
 	import {
 		allTags,
 		clipboardList,
+		groupByLetter,
+		LETTERS,
 		parseSort,
 		parseTagFilter,
 		searchContacts,
@@ -12,6 +14,10 @@
 		tagFilterParams,
 		type SortKey
 	} from '#lib/contacts.js';
+	import Tag from '#lib/components/Tag.svelte';
+	import { savePrefs, type PeopleView } from '#lib/prefs.js';
+	import { tagHue } from '#lib/themes.js';
+	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 
@@ -111,107 +117,206 @@
 		return () => clearTimeout(timer);
 	});
 
+	// ---- Cards or lines (remembered per device in the prefs cookie)
+	let view = $state<PeopleView>(untrack(() => data.prefs.peopleView));
+	function setView(v: PeopleView) {
+		view = v;
+		savePrefs({ ...data.prefs, peopleView: v });
+	}
+
+	// ---- Letter groups and the A–Z index (when sorted by name)
+	const groups = $derived(sort === 'name' ? groupByLetter(shown) : [{ letter: '', contacts: shown }]);
+	const present = $derived(new Set(groups.map((g) => g.letter)));
+	function jump(letter: string) {
+		document.getElementById(`letter-${letter}`)?.scrollIntoView({ block: 'start' });
+	}
+	// Drag along the index on a phone to scrub through letters.
+	function scrub(e: PointerEvent) {
+		if (e.pointerType === 'mouse' && e.type === 'pointermove' && !e.buttons) return;
+		const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+		const l = el?.dataset.letter;
+		if (l && present.has(l)) jump(l);
+	}
+	const tagCountsMap = $derived(
+		data.contacts.reduce<Record<string, number>>((acc, c) => {
+			for (const t of c.tags) acc[t] = (acc[t] ?? 0) + 1;
+			return acc;
+		}, {})
+	);
+	const untaggedCount = $derived(data.contacts.filter((c) => !c.tags.length).length);
+
 	const sortLabels: Record<SortKey, string> = { name: 'Name', 'last-contacted': 'Last contacted', recent: 'Recently added' };
-	const chip = 'inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-sm whitespace-nowrap';
+	const chip = 'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-[var(--radius-chip)] border px-2.5 text-sm whitespace-nowrap';
 	const chipOn = 'border-accent-solid bg-accent-solid text-on-accent';
 	const chipOff = 'border-control bg-surface text-fg';
 </script>
 
 <svelte:head><title>People · orbit</title></svelte:head>
 
-<div class="mx-auto max-w-2xl px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-	<header class="sticky top-0 z-10 -mx-4 bg-bg/95 px-4 pt-2 pb-3 backdrop-blur">
-		<div class="mb-3 flex items-center justify-between gap-2">
-			<h1 class="text-2xl font-semibold">People</h1>
-			{#if selecting}
-				<button type="button" class="min-h-11 rounded-[var(--radius-input)] px-3 font-medium text-accent" onclick={exitSelect}>Done</button>
-			{:else}
-				<button type="button" class="min-h-11 rounded-[var(--radius-input)] px-3 text-accent" onclick={() => (selecting = true)}>Select</button>
-			{/if}
-		</div>
+{#snippet tagRow(label: string, count: number, on: boolean, onclick: () => void, hue?: number)}
+	<li>
+		<button
+			type="button"
+			aria-pressed={on}
+			class="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-input)] px-2 text-left text-sm {on ? 'bg-accent-soft font-semibold text-on-accent-soft' : 'hover:bg-surface-2'}"
+			{onclick}
+		>
+			{#if hue}<span class="size-2 shrink-0 rounded-[2px]" style:background-color="var(--hue-{hue})" aria-hidden="true"></span>{:else}<span class="size-2 shrink-0 rounded-[2px] border border-control" aria-hidden="true"></span>{/if}
+			<span class="min-w-0 flex-1 truncate">{label}</span>
+			<span class="text-xs text-muted tabular">{count}</span>
+		</button>
+	</li>
+{/snippet}
 
-		<form method="GET" role="search" class="flex flex-col gap-2" onsubmit={(e) => e.preventDefault()}>
-			<div class="flex gap-2">
-				<label class="sr-only" for="q">Search people</label>
-				<input
-					id="q"
-					name="q"
-					type="search"
-					inputmode="search"
-					autocomplete="off"
-					enterkeyhint="search"
-					placeholder="Name, nickname, email or phone"
-					bind:value={query}
-					class="h-12 min-w-0 flex-1 rounded-[var(--radius-input)] border border-control bg-surface px-3 text-base placeholder:text-muted"
-				/>
-				<label>
-					<span class="sr-only">Sort by</span>
-					<select
-						name="sort"
-						bind:value={sort}
-						class="h-12 rounded-[var(--radius-input)] border border-control bg-surface px-2 text-base"
-					>
-						{#each Object.entries(sortLabels) as [k, label] (k)}<option value={k}>{label}</option>{/each}
-					</select>
-				</label>
+<div class="mx-auto max-w-[84rem] px-4 pt-[max(1rem,env(safe-area-inset-top))] lg:grid lg:grid-cols-[11.5rem_minmax(0,1fr)] lg:gap-6 lg:pr-4 lg:pl-6">
+	<!-- Desktop: tags in their own column -->
+	<aside class="sticky top-0 hidden h-dvh overflow-y-auto pt-16 pb-6 lg:block" aria-label="Filter by tag">
+		<h2 class="mb-2 px-2 text-xs font-semibold tracking-wider text-muted uppercase">Tags</h2>
+		<ul class="flex flex-col gap-px">
+			{@render tagRow('Everyone', data.contacts.length, !tags.length && !untagged, () => ((tags = []), (untagged = false)))}
+			{#each everyTag as t (t)}
+				{@render tagRow(t, tagCountsMap[t] ?? 0, tags.includes(t), () => toggleTag(t), tagHue(t))}
+			{/each}
+			{@render tagRow('Untagged', untaggedCount, untagged, () => ((untagged = !untagged), (tags = [])))}
+		</ul>
+		{#if tags.length > 1}
+			<button type="button" class="mt-3 px-2 text-sm text-accent" onclick={() => (tagMode = tagMode === 'any' ? 'all' : 'any')} data-testid="tag-mode">
+				Match {tagMode === 'any' ? 'any tag' : 'all tags'}
+			</button>
+		{/if}
+		<a href="/tags" class="mt-4 block px-2 text-sm text-muted underline-offset-2 hover:underline">All tags →</a>
+	</aside>
+
+	<div class="min-w-0">
+		<header class="sticky top-0 z-10 -mx-4 border-b border-line bg-bg px-4 pt-3 pb-3 lg:mx-0 lg:px-0">
+			<div class="mb-3 flex items-baseline justify-between gap-2">
+				<h1 class="text-2xl font-semibold">People <span class="text-base font-normal text-muted tabular" data-testid="count">{shown.length === data.contacts.length ? data.contacts.length : `${shown.length} of ${data.contacts.length}`}</span></h1>
+				<div class="flex items-center gap-1">
+					<div class="flex rounded-[var(--radius-input)] border border-control p-0.5" role="group" aria-label="View">
+						{#each [['cards', 'Cards', 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'], ['lines', 'Lines', 'M3 6h18M3 12h18M3 18h18']] as [v, label, icon] (v)}
+							<button
+								type="button"
+								aria-pressed={view === v}
+								aria-label={label}
+								title={label}
+								class="flex size-8 items-center justify-center rounded-[3px] {view === v ? 'bg-accent-solid text-on-accent' : 'text-muted hover:text-fg'}"
+								onclick={() => setView(v as PeopleView)}
+							>
+								<svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d={icon} /></svg>
+							</button>
+						{/each}
+					</div>
+					{#if selecting}
+						<button type="button" class="min-h-9 px-2 font-semibold text-accent" onclick={exitSelect}>Done</button>
+					{:else}
+						<button type="button" class="min-h-9 px-2 text-accent" onclick={() => (selecting = true)}>Select</button>
+					{/if}
+				</div>
 			</div>
 
-			<!-- Tag chips: one tap to filter; several tags combine as any/all. -->
-			{#if everyTag.length}
-				<div class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="group" aria-label="Filter by tag">
-					<button type="button" class="{chip} {untagged ? chipOn : chipOff} border-dashed" aria-pressed={untagged} onclick={() => ((untagged = !untagged), (tags = []))}>Untagged</button>
-					{#each chipOrder as t (t)}
-						<button type="button" class="{chip} {tags.includes(t) ? chipOn : chipOff}" aria-pressed={tags.includes(t)} onclick={() => toggleTag(t)}>{t}</button>
+			<form method="GET" role="search" class="flex flex-col gap-2" onsubmit={(e) => e.preventDefault()}>
+				<div class="flex gap-2">
+					<label class="sr-only" for="q">Search people</label>
+					<input
+						id="q"
+						name="q"
+						type="search"
+						inputmode="search"
+						autocomplete="off"
+						enterkeyhint="search"
+						placeholder="Name, nickname, email or phone"
+						bind:value={query}
+						class="h-10 min-w-0 flex-1 rounded-[var(--radius-input)] border border-control bg-surface px-3"
+					/>
+					<label>
+						<span class="sr-only">Sort by</span>
+						<select name="sort" bind:value={sort} class="h-10 rounded-[var(--radius-input)] border border-control bg-surface px-2">
+							{#each Object.entries(sortLabels) as [k, label] (k)}<option value={k}>{label}</option>{/each}
+						</select>
+					</label>
+				</div>
+
+				<!-- Phone: tag chips (desktop has the tag column) -->
+				{#if everyTag.length}
+					<div class="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] lg:hidden" role="group" aria-label="Filter by tag">
+						<button type="button" class="{chip} {untagged ? chipOn : chipOff} border-dashed" aria-pressed={untagged} onclick={() => ((untagged = !untagged), (tags = []))}>Untagged</button>
+						{#each chipOrder as t (t)}
+							<button type="button" class="{chip} {tags.includes(t) ? chipOn : chipOff}" aria-pressed={tags.includes(t)} onclick={() => toggleTag(t)}>
+								<span class="size-1.5 rounded-[1px]" style:background-color={tags.includes(t) ? 'currentColor' : `var(--hue-${tagHue(t)})`} aria-hidden="true"></span>{t}
+							</button>
+						{/each}
+					</div>
+					<noscript>
+						<fieldset class="flex flex-wrap gap-2 text-sm">
+							{#each everyTag as t (t)}<label><input type="checkbox" name="tag" value={t} checked={tags.includes(t)} /> {t}</label>{/each}
+							<button class="rounded bg-accent-solid px-3 text-on-accent">Go</button>
+						</fieldset>
+					</noscript>
+				{/if}
+			</form>
+
+			{#if filtering || (tags.length > 1) || selecting}
+				<div class="mt-2 flex min-h-6 flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+					{#if tags.length > 1}
+						<button type="button" class="text-accent lg:hidden" onclick={() => (tagMode = tagMode === 'any' ? 'all' : 'any')}>Match {tagMode === 'any' ? 'any tag' : 'all tags'}</button>
+					{/if}
+					{#if filtering}<button type="button" class="text-accent" onclick={clearFilters}>Clear filters</button>{/if}
+					{#if selecting}
+						<button type="button" class="text-accent" onclick={toggleAllShown} disabled={!shown.length}>{allShownSelected ? 'Deselect' : 'Select'} all {shown.length} shown</button>
+						{#if selected.size}<button type="button" class="text-muted" onclick={() => selected.clear()}>Clear selection</button>{/if}
+					{/if}
+				</div>
+			{/if}
+		</header>
+
+		<div class="relative pr-6 lg:pr-8">
+			{#if shown.length}
+				<div class="{selecting ? 'pb-40' : 'pb-6'}">
+					{#each groups as g (g.letter)}
+						<section aria-labelledby={g.letter ? `letter-${g.letter}` : undefined}>
+							{#if g.letter}
+								<h2 id="letter-{g.letter}" class="scroll-mt-44 pt-3 pb-1 text-sm font-semibold text-muted lg:scroll-mt-36">{g.letter}</h2>
+							{/if}
+							<ul class={view === 'cards' ? 'grid gap-2 sm:grid-cols-2 xl:grid-cols-3' : 'border-y border-line'}>
+								{#each g.contacts as c (c.id)}
+									<ContactCard contact={c} {view} {selecting} selected={selected.has(c.id)} ontoggle={toggle} />
+								{/each}
+							</ul>
+						</section>
 					{/each}
 				</div>
-				<noscript>
-					<!-- Without JS: plain checkboxes submitted with the GET form. -->
-					<fieldset class="flex flex-wrap gap-2 text-sm">
-						{#each everyTag as t (t)}<label><input type="checkbox" name="tag" value={t} checked={tags.includes(t)} /> {t}</label>{/each}
-						<button class="rounded bg-accent-solid px-3 text-on-accent">Go</button>
-					</fieldset>
-				</noscript>
+			{:else if data.contacts.length}
+				<div class="py-12 text-center text-muted">
+					<p>No one matches{query ? ` “${query}”` : ''}{tags.length ? ` with ${tags.length === 1 ? 'tag' : tagMode === 'all' ? 'all of' : 'any of'} ${tags.join(', ')}` : ''}{untagged ? ' without tags' : ''}.</p>
+					<button class="mt-3 min-h-11 px-4 text-accent" onclick={clearFilters}>Clear search</button>
+				</div>
+			{:else}
+				<p class="py-12 text-center text-muted">No contacts in Monica yet. Add one in Monica to see it here.</p>
 			{/if}
-		</form>
 
-		<div class="mt-2 flex min-h-6 items-center justify-between gap-2 text-sm text-muted">
-			<p aria-live="polite" data-testid="count">
-				{shown.length === data.contacts.length ? `${data.contacts.length} people` : `${shown.length} of ${data.contacts.length} people`}
-			</p>
-			<div class="flex items-center gap-3">
-				{#if tags.length > 1}
-					<button type="button" class="text-accent" onclick={() => (tagMode = tagMode === 'any' ? 'all' : 'any')} data-testid="tag-mode">
-						Match {tagMode === 'any' ? 'any tag' : 'all tags'}
-					</button>
-				{/if}
-				{#if filtering}<button type="button" class="text-accent" onclick={clearFilters}>Clear</button>{/if}
-			</div>
+			<!-- A–Z index: tap or drag to jump (only when sorted by name) -->
+			{#if sort === 'name' && shown.length > 8}
+				<nav
+					class="fixed top-[13.5rem] right-0.5 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 flex touch-none flex-col items-center justify-between select-none lg:top-40 lg:right-2 lg:bottom-10"
+					aria-label="Jump to letter"
+					onpointerdown={scrub}
+					onpointermove={scrub}
+					data-testid="az-index"
+				>
+					{#each LETTERS as l (l)}
+						<button
+							type="button"
+							data-letter={l}
+							disabled={!present.has(l)}
+							class="flex min-h-0 w-6 flex-1 items-center justify-center text-[0.68rem] leading-none font-semibold {present.has(l) ? 'text-accent' : 'text-muted opacity-40'}"
+							onclick={() => jump(l)}
+							aria-label="Jump to {l}"
+						>{l}</button>
+					{/each}
+				</nav>
+			{/if}
 		</div>
-
-		{#if selecting}
-			<div class="mt-2 flex items-center justify-between gap-2 text-sm">
-				<button type="button" class="min-h-9 text-accent" onclick={toggleAllShown} disabled={!shown.length}>
-					{allShownSelected ? 'Deselect' : 'Select'} all {shown.length} shown
-				</button>
-				{#if selected.size}<button type="button" class="min-h-9 text-muted" onclick={() => selected.clear()}>Clear selection</button>{/if}
-			</div>
-		{/if}
-	</header>
-
-	{#if shown.length}
-		<ul class="flex flex-col gap-2 {selecting ? 'pb-36' : 'pb-4'}">
-			{#each shown as c (c.id)}
-				<ContactCard contact={c} {selecting} selected={selected.has(c.id)} ontoggle={toggle} />
-			{/each}
-		</ul>
-	{:else if data.contacts.length}
-		<div class="py-12 text-center text-muted">
-			<p>No one matches{query ? ` “${query}”` : ''}{tags.length ? ` with ${tags.length === 1 ? 'tag' : tagMode === 'all' ? 'all of' : 'any of'} ${tags.join(', ')}` : ''}{untagged ? ' without tags' : ''}.</p>
-			<button class="mt-3 min-h-11 rounded-[var(--radius-input)] px-4 text-accent" onclick={clearFilters}>Clear search</button>
-		</div>
-	{:else}
-		<p class="py-12 text-center text-muted">No contacts in Monica yet. Add one in Monica to see it here.</p>
-	{/if}
+	</div>
 </div>
 
 <!-- Bulk action bar, above the phone tab bar -->

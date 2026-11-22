@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tagCounts } from '#lib/contacts.js';
+	import { tagHue } from '#lib/themes.js';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -23,8 +24,8 @@
 					href="/contacts?tag={encodeURIComponent(t.name)}"
 					class="relative flex min-h-12 items-center justify-between overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface px-4"
 				>
-					<span class="absolute inset-y-0 left-0 bg-accent-soft" style:width="{(t.count / max) * 100}%" aria-hidden="true"></span>
-					<span class="relative font-medium">{t.name}</span>
+					<span class="absolute inset-y-0 left-0" style:background-color="var(--tag-{tagHue(t.name)}-bg)" style:width="{(t.count / max) * 100}%" aria-hidden="true"></span>
+					<span class="relative flex items-center gap-2 font-semibold"><span class="size-2.5 rounded-[2px]" style:background-color="var(--hue-{tagHue(t.name)})" aria-hidden="true"></span>{t.name}</span>
 					<span class="relative text-sm text-muted tabular-nums">{t.count === 0 ? 'unused' : `${t.count} ${t.count === 1 ? 'person' : 'people'}`}</span>
 				</a>
 			</li>

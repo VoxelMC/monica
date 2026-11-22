@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Avatar from '#lib/components/Avatar.svelte';
+	import Tag from '#lib/components/Tag.svelte';
 	import { fullDate, relativeDate } from '#lib/contacts.js';
 	import type { PageProps } from './$types';
 
@@ -29,7 +30,7 @@
 	<!-- Personal sections fold away; the count says what is inside without opening. -->
 	<details {open} class="group rounded-[var(--radius-card)] border border-line bg-surface">
 		<summary class="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-base font-semibold select-none [&::-webkit-details-marker]:hidden">
-			<span>{title}{#if count}<span class="ml-2 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">{count}</span>{/if}</span>
+			<span>{title}{#if count}<span class="ml-2 rounded-[var(--radius-chip)] bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">{count}</span>{/if}</span>
 			<svg viewBox="0 0 24 24" class="size-4 transition-transform duration-150 group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
 		</summary>
 		<div class="px-4 pb-4">{@render body()}</div>
@@ -88,7 +89,7 @@
 	{#if c.tags.length}
 		<ul class="mb-3 flex flex-wrap gap-1" aria-label="Tags">
 			{#each c.tags as t (t)}
-				<li><a href="/contacts?tag={encodeURIComponent(t)}" class="inline-flex min-h-8 items-center rounded-full bg-accent-soft px-3 text-sm text-on-accent-soft">{t}</a></li>
+				<li><Tag name={t} href="/contacts?tag={encodeURIComponent(t)}" size="md" /></li>
 			{/each}
 		</ul>
 	{/if}
@@ -118,7 +119,7 @@
 					<ol class="flex flex-col gap-4" data-testid="timeline">
 						{#each c.timeline as item (item.kind + item.id)}
 							<li class="flex gap-3">
-								<span class="mt-1.5 size-2.5 shrink-0 rounded-full {kindDot[item.kind]}" aria-hidden="true"></span>
+								<span class="mt-1.5 size-2.5 shrink-0 rounded-[var(--radius-chip)] {kindDot[item.kind]}" aria-hidden="true"></span>
 								<div class="min-w-0 flex-1">
 									<p class="text-sm">
 										<span class="font-medium">{item.title}</span>
