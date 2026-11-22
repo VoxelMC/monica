@@ -118,5 +118,5 @@
 		</div>
 	</section>
 
-	<p class="text-sm text-muted"><a href="/health" class="underline underline-offset-2">System health</a></p>
+	<p class="flex gap-6 text-sm text-muted"><a href="/health" class="underline underline-offset-2">System health</a><a href="/audit" class="underline underline-offset-2">Audit log</a></p>
 </div>

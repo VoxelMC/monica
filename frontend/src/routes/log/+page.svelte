@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import Avatar from '#lib/components/Avatar.svelte';
 	import { allTags, fold, searchContacts, sortContacts } from '#lib/contacts.js';
@@ -139,6 +140,23 @@
 	);
 	let previewOpen = $state(false);
 
+	// ---- Saving (slice 4: hangouts only). The server re-checks everything and
+	// writes through the guards; the browser only sends the draft.
+	let saving = $state(false);
+	let outcome = $state<{ ok: boolean; message: string; activityId: number | null; notes: { contactId: number; saved: boolean }[]; dryRun: boolean } | null>(null);
+	const draftJson = $derived(JSON.stringify({ ...hangoutDraft, personNotes: Object.fromEntries(Object.entries(personNotes).filter(([id]) => people.has(Number(id)))) }));
+	const savedPeople = $state<{ id: number; name: string }[]>([]);
+	function resetForm() {
+		people.clear();
+		personNotes = {};
+		openNotes.clear();
+		summary = '';
+		description = '';
+		typeId = null;
+		date = todayIso();
+		showProblems = false;
+	}
+
 	const input = 'w-full min-w-0 rounded-[var(--radius-input)] border border-control bg-surface px-3 text-base';
 	const label = 'mb-1 block text-sm font-medium';
 	const err = 'mt-1 text-sm text-attention';
@@ -164,6 +182,16 @@
 			>
 		{/each}
 	</div>
+
+	{#if outcome}
+		<div class="mb-4 rounded-[var(--radius-card)] border p-3 text-sm {outcome.ok ? 'border-accent-solid bg-accent-soft text-on-accent-soft' : 'border-attention text-attention'}" role="status" data-testid="save-outcome">
+			<p class="font-semibold">{outcome.message}</p>
+			{#if outcome.ok && savedPeople.length}
+				<p class="mt-1">Open: {#each savedPeople as p (p.id)}<a class="underline" href="/contacts/{p.id}">{p.name}</a> · {/each}<a class="underline" href="/diary">Diary</a></p>
+			{/if}
+			<p class="mt-1"><a class="underline" href="/audit">Audit log</a></p>
+		</div>
+	{/if}
 
 	<form class="flex flex-col gap-5" onsubmit={(e) => { e.preventDefault(); showProblems = true; if (ok) previewOpen = true; }}>
 		{#if kind === 'hangout'}
@@ -312,9 +340,15 @@
 		{/if}
 
 		<div class="flex flex-col gap-2">
-			<button type="submit" class="min-h-12 rounded-[var(--radius-input)] border border-accent-solid font-medium text-accent">Preview</button>
-			<button type="button" disabled class="min-h-12 rounded-[var(--radius-input)] bg-surface-2 font-medium text-muted" title="Arrives with writes (slice 4)">Save</button>
-			<p class="text-center text-sm text-muted">Saving arrives with writes (slice 4). Preview shows exactly what will be sent.</p>
+			{#if kind === 'hangout'}
+				<button type="submit" class="min-h-12 rounded-[var(--radius-input)] bg-accent-solid font-semibold text-on-accent">Review and save</button>
+				<p class="text-center text-sm text-muted">
+					You’ll see exactly what will be sent before anything is saved.{#if data.readOnly} orbit is read-only right now, so saving will be refused.{:else if data.dryRun} Dry run is on: nothing will reach Monica.{/if}
+				</p>
+			{:else}
+				<button type="submit" class="min-h-12 rounded-[var(--radius-input)] border border-accent-solid font-medium text-accent">Preview</button>
+				<p class="text-center text-sm text-muted">Saving journal entries comes next. Preview shows exactly what will be sent.</p>
+			{/if}
 		</div>
 	</form>
 </div>
@@ -322,7 +356,7 @@
 {#if previewOpen}
 	<div class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal="true" aria-label="Preview">
 		<div class="max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-t-[var(--radius-card)] bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-[var(--radius-card)]">
-			<h2 class="text-lg font-semibold">This would be sent to Monica</h2>
+			<h2 class="text-lg font-semibold">{kind === 'hangout' ? 'Save this to Monica?' : 'This would be sent to Monica'}</h2>
 			<p class="mt-1 text-sm text-muted">{requests.length} {requests.length === 1 ? 'request' : 'requests'}, in this order. The activity appears on each person’s timeline.</p>
 			<ol class="mt-3 flex flex-col gap-3" data-testid="preview">
 				{#each requests as r, i (i)}
@@ -336,8 +370,32 @@
 			{#if kind === 'journal' && mentions.length}
 				<p class="mt-3 text-sm">Then orbit links the entry to {mentions.map((m) => m.name).join(', ')} in its own database (nothing extra in Monica).</p>
 			{/if}
-			<p class="mt-2 text-sm text-muted">Nothing has been sent.</p>
-			<button type="button" class="mt-3 min-h-12 w-full rounded-[var(--radius-input)] bg-accent-solid font-medium text-on-accent" onclick={() => (previewOpen = false)}>Back to editing</button>
+			<p class="mt-2 text-sm text-muted">Nothing has been sent yet.</p>
+			{#if kind === 'hangout'}
+				<form
+					method="POST"
+					action="?/hangout"
+					use:enhance={() => {
+						saving = true;
+						const who = picked.map((c) => ({ id: c.id, name: c.name }));
+						return async ({ result }) => {
+							saving = false;
+							previewOpen = false;
+							const d = (result.type === 'success' || result.type === 'failure' ? result.data : null) as typeof outcome;
+							outcome = d ?? { ok: false, message: 'Something went wrong; nothing may have been saved. Check the audit log.', activityId: null, notes: [], dryRun: false };
+							savedPeople.splice(0, savedPeople.length, ...(outcome.ok ? who : []));
+							if (outcome.ok) resetForm();
+							window.scrollTo({ top: 0 });
+						};
+					}}
+				>
+					<input type="hidden" name="draft" value={draftJson} />
+					<button type="submit" disabled={saving} class="mt-3 min-h-12 w-full rounded-[var(--radius-input)] bg-accent-solid font-semibold text-on-accent disabled:opacity-60">
+						{saving ? 'Saving…' : `Save to Monica (${requests.length} ${requests.length === 1 ? 'request' : 'requests'})`}
+					</button>
+				</form>
+			{/if}
+			<button type="button" disabled={saving} class="mt-2 min-h-11 w-full rounded-[var(--radius-input)] border border-control text-fg" onclick={() => (previewOpen = false)}>Back to editing</button>
 		</div>
 	</div>
 {/if}

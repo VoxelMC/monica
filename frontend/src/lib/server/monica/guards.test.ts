@@ -7,7 +7,7 @@ import { fakeClock, fakeFetch, memoryAudit } from './test-helpers';
 
 const BASE = 'http://127.0.0.1:8081';
 
-// Test-only rules. The real allowlist is empty in slice 0.
+// Test-only rules (generic fixtures). The real allowlist is tested further down.
 const RULES: WriteRule[] = [
 	{ key: 'note.create', method: 'POST', path: '/api/notes', editableFields: ['body', 'contact_id', 'is_favorited'] },
 	{
@@ -95,14 +95,50 @@ describe('DELETE', () => {
 });
 
 describe('allowlist', () => {
-	it('is empty in slice 0', () => {
-		expect(WRITE_ALLOWLIST).toEqual([]);
+	it('contains only the approved creates (slice 4: log hangouts) and nothing that updates or deletes', () => {
+		expect(WRITE_ALLOWLIST.map((r) => `${r.method} ${r.path}`).sort()).toEqual(['POST /api/activities', 'POST /api/notes']);
+		expect(WRITE_ALLOWLIST.every((r) => r.method === 'POST')).toBe(true);
 	});
 
-	it('with the real (empty) allowlist, nothing can be written even when not read-only', async () => {
+	it('real rules: activity and note fields are limited to what the Log form sends', () => {
+		const byKey = Object.fromEntries(WRITE_ALLOWLIST.map((r) => [r.key, [...r.editableFields].sort()]));
+		expect(byKey['activity.create']).toEqual(['activity_type_id', 'contacts', 'description', 'happened_at', 'summary']);
+		expect(byKey['note.create']).toEqual(['body', 'contact_id']);
+	});
+
+	it('with the real allowlist, read-only still refuses everything and sends nothing', async () => {
+		const { guards, calls, rows } = setup({ readOnly: true, allowlist: [...WRITE_ALLOWLIST] });
+		await expect(guards.create('activity.create', { summary: 'x', happened_at: '2026-11-20', contacts: [1] })).rejects.toMatchObject({ reason: 'read-only' });
+		await expect(guards.create('note.create', { contact_id: 1, body: 'x' })).rejects.toMatchObject({ reason: 'read-only' });
+		expect(calls).toHaveLength(0);
+		expect(rows().map((r) => r.result)).toEqual(['refused:read-only', 'refused:read-only']);
+	});
+
+	it('with the real allowlist, an activity is created once, audited before and after', async () => {
+		const response = { data: { id: 99, object: 'activity', summary: 'Dinner' } };
+		const { guards, calls, rows } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: response }] });
+		const body = { summary: 'Dinner', happened_at: '2026-11-20', contacts: [1, 3] };
+		const res = await guards.create('activity.create', body);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]).toMatchObject({ method: 'POST', body });
+		expect(new URL(calls[0].url).pathname).toBe('/api/activities');
+		expect(res.response).toEqual(response);
+		const [row] = rows();
+		expect(row).toMatchObject({ method: 'POST', endpoint: '/api/activities', result: 'ok', dryRun: false });
+		expect(JSON.parse(row.afterJson!)).toEqual(response);
+	});
+
+	it('with the real allowlist, unknown fields are refused (e.g. account_id)', async () => {
 		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST] });
-		await expect(guards.create('note.create', { body: 'x' })).rejects.toMatchObject({ reason: 'not-allowlisted' });
-		await expect(guards.update('thing.update', 1, {}, 'x')).rejects.toMatchObject({ reason: 'not-allowlisted' });
+		await expect(guards.create('note.create', { contact_id: 1, body: 'x', account_id: 2 })).rejects.toMatchObject({ reason: 'field-not-editable' });
+		expect(calls).toHaveLength(0);
+	});
+
+	it('updates and deletes are still impossible with the real allowlist', async () => {
+		const { guards, transport, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST] });
+		await expect(guards.update('contact.update', 1, {}, 'x')).rejects.toMatchObject({ reason: 'not-allowlisted' });
+		expect(() => checkWrite('PUT', '/api/contacts/1', { readOnly: false, allowlist: WRITE_ALLOWLIST })).toThrow(/not on the write allowlist/);
+		await expect(transport.request('DELETE' as Method, '/api/notes/1')).rejects.toMatchObject({ reason: 'delete-forbidden' });
 		expect(calls).toHaveLength(0);
 	});
 

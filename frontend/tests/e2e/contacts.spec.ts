@@ -93,23 +93,28 @@ test('log: pre-filled from a contact, preview shows the payload, nothing can be 
 	await expect(page.getByTestId('picked').getByRole('button')).toHaveCount(1);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 
-	// Validation before preview
-	await page.getByRole('button', { name: 'Preview' }).click();
+	// Validation before review
+	await page.getByRole('button', { name: 'Review and save' }).click();
 	await expect(page.getByText('Say what you did')).toBeVisible();
 
 	await page.getByLabel('What did you do?').fill('Climbing at the gym');
-	await page.getByRole('button', { name: 'Preview' }).click();
+	await page.getByRole('button', { name: 'Review and save' }).click();
 	const pre = page.getByTestId('preview');
 	await expect(pre).toContainText('POST /api/activities');
 	await expect(pre).toContainText('"summary": "Climbing at the gym"');
-	await expect(page.getByText('Nothing has been sent.')).toBeVisible();
-	await page.getByRole('button', { name: 'Back to editing' }).click();
-	await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+	await expect(page.getByText('Nothing has been sent yet.')).toBeVisible();
+	// The dev server is read-only: saving is refused and nothing reaches Monica
+	await page.getByRole('button', { name: /Save to Monica/ }).click();
+	await expect(page.getByTestId('save-outcome')).toContainText('read-only');
+	await expect(page.getByTestId('save-outcome')).toContainText('Nothing was saved');
 });
 
-test('log page has no server action (POST is refused)', async ({ request }) => {
-	const res = await request.post('/log', { form: { summary: 'x' }, headers: { origin: 'http://127.0.0.1:5173' } });
-	expect([403, 404, 405]).toContain(res.status());
+test('log: only the hangout action exists; malformed drafts are rejected before any write', async ({ request }) => {
+	// (Cross-site form posts get 403 in production builds; the dev server skips that check.)
+	const other = await request.post('/log', { form: { summary: 'x' }, headers: { origin: 'http://127.0.0.1:5173' } });
+	expect(other.status()).toBeGreaterThanOrEqual(400); // no default action
+	const bad = await request.post('/log?/hangout', { form: { draft: '{"contactIds":"nope"}' }, headers: { origin: 'http://127.0.0.1:5173' } });
+	expect(bad.status()).toBe(400);
 });
 
 test('diary page loads with the Log button in the nav', async ({ page }) => {
@@ -127,7 +132,7 @@ test('log: a note for one person becomes a second request in the preview', async
 	await first.click();
 	await page.getByPlaceholder('e.g. Starting a new job in March').fill('Moving to Lisbon in spring');
 	await page.getByLabel('What did you do?').fill('Dinner');
-	await page.getByRole('button', { name: 'Preview' }).click();
+	await page.getByRole('button', { name: 'Review and save' }).click();
 	const pre = page.getByTestId('preview');
 	await expect(pre).toContainText('POST /api/activities');
 	await expect(pre).toContainText('POST /api/notes');

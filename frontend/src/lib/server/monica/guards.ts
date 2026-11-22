@@ -34,11 +34,22 @@ export interface WriteRule {
 }
 
 /**
- * The write allowlist. EMPTY until slice 4 is approved by the owner.
- * Before adding an entry: write its guard test, run it on staging, show the owner
- * the audit log before/after JSON, and wait for approval (frontend/CLAUDE.md).
+ * The write allowlist. Before adding an entry: write its guard test, run it on
+ * staging, show the owner the audit log before/after JSON, and wait for approval
+ * (frontend/CLAUDE.md). Only creates so far: nothing here can change or remove an
+ * existing record. Fields are exactly what the Log form sends (src/lib/log.ts).
  */
-export const WRITE_ALLOWLIST: readonly WriteRule[] = [];
+export const WRITE_ALLOWLIST: readonly WriteRule[] = [
+	// Slice 4, log hangouts: one activity for everyone who was there (Monica 4.1.2 CreateActivity)
+	{
+		key: 'activity.create',
+		method: 'POST',
+		path: '/api/activities',
+		editableFields: ['summary', 'description', 'happened_at', 'activity_type_id', 'contacts']
+	},
+	// ...plus an optional note on each person's page ("what I learned about them")
+	{ key: 'note.create', method: 'POST', path: '/api/notes', editableFields: ['contact_id', 'body'] }
+];
 
 export interface GuardOptions {
 	transport: Transport;

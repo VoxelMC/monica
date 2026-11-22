@@ -289,6 +289,8 @@ Work ships in six slices: the first three only read data, and writing starts in 
 
 ### Slice 4 — First writes
 
+**Status (2026-11-22):** owner chose to start slice 4 without the read-only week, writes one at a time with the usual steps. First write: log hangouts (`POST /api/activities` + `POST /api/notes`, creates only). Guard tests written first; run on staging (activity #1 for contacts 7 and 8, note #2 on contact 7, audit rows #9 and #10); awaiting owner approval before it is merged and enabled in production. Off-server backup copy: owner deferred it and accepts the risk.
+
 - Log a catch-up (activity) from the contact page in two taps
 - Add a note
 - Edit phones and emails

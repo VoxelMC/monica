@@ -1,18 +1,41 @@
-// Read-only until slice 4: loads what the form needs. There is deliberately no
-// form action here, so nothing can be sent to Monica from this page yet.
-import { error } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
+import { todayIso } from '#lib/log.js';
+import { saveHangout } from '#lib/server/log-write.js';
 import { listContacts } from '#lib/server/monica/contacts.js';
 import { listActivityTypes } from '#lib/server/monica/diary.js';
-import { monica } from '#lib/server/monica/index.js';
 import { loadErrorMessage } from '#lib/server/monica/errors.js';
-import type { PageServerLoad } from './$types';
+import { getGuards, monica, settings } from '#lib/server/monica/index.js';
+import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
 	try {
 		const [contacts, types] = await Promise.all([listContacts(monica), listActivityTypes(monica)]);
-		return { contacts, types };
+		return { contacts, types, readOnly: settings.readOnly, dryRun: settings.dryRun };
 	} catch (err) {
 		console.error('log page failed:', err instanceof Error ? err.message : err);
 		error(502, loadErrorMessage(err, 'people'));
+	}
+};
+
+export const actions: Actions = {
+	// Slice 4: save a hangout through the write guards. Journal entries are not saved yet.
+	hangout: async ({ request }) => {
+		const form = await request.formData();
+		let draft: unknown;
+		try {
+			draft = JSON.parse(String(form.get('draft') ?? ''));
+		} catch {
+			return fail(400, { ok: false, message: 'The form could not be read. Reload the page and try again.' });
+		}
+		const [contacts, types] = await Promise.all([listContacts(monica), listActivityTypes(monica)]);
+		// The server runs in UTC; allow "today" in time zones ahead of it.
+		const tomorrow = todayIso(new Date(Date.now() + 86_400_000));
+		const result = await saveHangout(
+			getGuards(),
+			draft,
+			{ contactIds: new Set(contacts.map((c) => c.id)), activityTypeIds: new Set(types.map((t) => t.id)) },
+			tomorrow
+		);
+		return result.ok ? result : fail(result.activityId ? 502 : 400, result);
 	}
 };
