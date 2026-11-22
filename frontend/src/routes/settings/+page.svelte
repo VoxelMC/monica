@@ -20,7 +20,7 @@
 		savePrefs(prefs);
 	}
 	const cardVars = (t: Theme) => Object.entries(t.tokens).map(([k, v]) => `--${k}:${v}`).join(';');
-	const seg = 'flex-1 min-h-9 rounded-[3px] text-sm';
+	const seg = 'flex-1 min-h-9 rounded-[var(--radius-chip)] text-sm';
 </script>
 
 <svelte:head><title>Settings · orbit</title></svelte:head>
@@ -37,7 +37,7 @@
 			<!-- A small preview drawn in the theme's own colours -->
 			<span class="block bg-[var(--bg)] p-2.5">
 				<span class="flex items-center gap-2 rounded-[4px] border border-[var(--line)] bg-[var(--surface)] p-2">
-					<span class="size-6 rounded-[22%] bg-[var(--hue-2)]"></span>
+					<span class="size-6 rounded-[3px] bg-[var(--hue-2)]"></span>
 					<span class="min-w-0 flex-1">
 						<span class="block truncate text-xs font-semibold text-[var(--fg)]">Ana Bernaz</span>
 						<span class="block truncate text-[0.65rem] text-[var(--muted)]">Last contact 3 days ago</span>

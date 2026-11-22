@@ -35,7 +35,7 @@
 {#snippet check()}
 	{#if selecting}
 		<span
-			class="flex size-5 shrink-0 items-center justify-center rounded-[3px] border-2 {selected ? 'border-accent-solid bg-accent-solid text-on-accent' : 'border-control'}"
+			class="flex size-5 shrink-0 items-center justify-center rounded-[var(--radius-chip)] border-2 {selected ? 'border-accent-solid bg-accent-solid text-on-accent' : 'border-control'}"
 			aria-hidden="true"
 		>
 			{#if selected}<svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-10" /></svg>{/if}

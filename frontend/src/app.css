@@ -33,10 +33,13 @@
 }
 
 @theme {
-	/* Clean lines: small radii everywhere; avatars are rounded squares. */
-	--radius-card: 6px;
-	--radius-input: 4px;
+	/* One radius for cards, inputs, buttons and photos; a smaller one for tags and
+	   checkboxes. Nested parts use the outer radius minus the padding (5 - 2 = 3). */
+	--radius-card: 5px;
+	--radius-input: 5px;
 	--radius-chip: 3px;
+	--radius-photo: 5px;
+	--radius-photo-lg: 8px;
 	/* Type: on the smaller side, with clear steps to the headings. 12/13/15/17/20/26 */
 	--text-xs: 0.75rem;
 	--text-xs--line-height: 1rem;
@@ -93,6 +96,17 @@ textarea {
 ::placeholder {
 	color: var(--muted);
 	opacity: 1;
+}
+/* Tailwind v4 gives buttons the default arrow; anything clickable gets the hand. */
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+select,
+summary,
+label[for] {
+	cursor: pointer;
+}
+button:disabled {
+	cursor: default;
 }
 :focus-visible {
 	outline: 2px solid var(--accent);

@@ -193,3 +193,12 @@ test('settings: picking a theme applies at once and survives a reload', async ({
 	expect(bg.length).toBeGreaterThan(0);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });
+
+test('clickable controls show the pointer cursor', async ({ page, isMobile }) => {
+	test.skip(isMobile, 'no cursor on touch screens');
+	await page.goto('/contacts');
+	const cursor = (sel: string) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).cursor);
+	expect(await cursor('aside[aria-label="Filter by tag"] button')).toBe('pointer');
+	expect(await cursor('[data-testid="az-index"] button:not([disabled])')).toBe('pointer');
+	expect(await cursor('[data-testid="az-index"] button[disabled]')).toBe('default');
+});

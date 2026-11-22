@@ -159,7 +159,7 @@
 				type="button"
 				role="tab"
 				aria-selected={kind === k}
-				class="min-h-10 rounded-md text-sm font-medium {kind === k ? 'bg-accent-solid text-on-accent' : 'text-fg'}"
+				class="min-h-10 rounded-[var(--radius-chip)] text-sm font-medium {kind === k ? 'bg-accent-solid text-on-accent' : 'text-fg'}"
 				onclick={() => ((kind = k as typeof kind), (showProblems = false))}>{text}</button
 			>
 		{/each}

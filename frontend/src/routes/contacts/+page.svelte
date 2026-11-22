@@ -131,12 +131,17 @@
 		document.getElementById(`letter-${letter}`)?.scrollIntoView({ block: 'start' });
 	}
 	// Drag along the index on a phone to scrub through letters.
+	let bubble = $state<{ letter: string; y: number } | null>(null);
 	function scrub(e: PointerEvent) {
 		if (e.pointerType === 'mouse' && e.type === 'pointermove' && !e.buttons) return;
 		const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
 		const l = el?.dataset.letter;
-		if (l && present.has(l)) jump(l);
+		if (l && present.has(l)) {
+			jump(l);
+			bubble = { letter: l, y: e.clientY };
+		}
 	}
+	const endScrub = () => setTimeout(() => (bubble = null), 350);
 	const tagCountsMap = $derived(
 		data.contacts.reduce<Record<string, number>>((acc, c) => {
 			for (const t of c.tags) acc[t] = (acc[t] ?? 0) + 1;
@@ -168,10 +173,11 @@
 	</li>
 {/snippet}
 
-<div class="mx-auto max-w-[84rem] px-4 pt-[max(1rem,env(safe-area-inset-top))] lg:grid lg:grid-cols-[11.5rem_minmax(0,1fr)] lg:gap-6 lg:pr-4 lg:pl-6">
+<div class="px-4 pt-[max(1rem,env(safe-area-inset-top))] lg:flex lg:p-0">
 	<!-- Desktop: tags in their own column -->
-	<aside class="sticky top-0 hidden h-dvh overflow-y-auto pt-16 pb-6 lg:block" aria-label="Filter by tag">
-		<h2 class="mb-2 px-2 text-xs font-semibold tracking-wider text-muted uppercase">Tags</h2>
+	<!-- Desktop: a second sidebar for tags, right next to the main one -->
+	<aside class="sticky top-0 hidden h-dvh w-52 shrink-0 overflow-y-auto border-r border-line px-3 pt-6 pb-6 lg:block" aria-label="Filter by tag">
+		<h2 class="mb-3 px-2 text-lg font-semibold">Tags</h2>
 		<ul class="flex flex-col gap-px">
 			{@render tagRow('Everyone', data.contacts.length, !tags.length && !untagged, () => ((tags = []), (untagged = false)))}
 			{#each everyTag as t (t)}
@@ -187,19 +193,20 @@
 		<a href="/tags" class="mt-4 block px-2 text-sm text-muted underline-offset-2 hover:underline">All tags →</a>
 	</aside>
 
-	<div class="min-w-0">
+	<div class="min-w-0 lg:flex-1 lg:px-8 lg:pt-4">
+		<div class="lg:max-w-5xl">
 		<header class="sticky top-0 z-10 -mx-4 border-b border-line bg-bg px-4 pt-3 pb-3 lg:mx-0 lg:px-0">
-			<div class="mb-3 flex items-baseline justify-between gap-2">
+			<div class="mb-3 flex items-center justify-between gap-2">
 				<h1 class="text-2xl font-semibold">People <span class="text-base font-normal text-muted tabular" data-testid="count">{shown.length === data.contacts.length ? data.contacts.length : `${shown.length} of ${data.contacts.length}`}</span></h1>
-				<div class="flex items-center gap-1">
-					<div class="flex rounded-[var(--radius-input)] border border-control p-0.5" role="group" aria-label="View">
+				<div class="flex h-9 items-center gap-2">
+					<div class="flex h-9 items-center gap-0.5 rounded-[var(--radius-input)] border border-control p-0.5" role="group" aria-label="View">
 						{#each [['cards', 'Cards', 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'], ['lines', 'Lines', 'M3 6h18M3 12h18M3 18h18']] as [v, label, icon] (v)}
 							<button
 								type="button"
 								aria-pressed={view === v}
 								aria-label={label}
 								title={label}
-								class="flex size-8 items-center justify-center rounded-[3px] {view === v ? 'bg-accent-solid text-on-accent' : 'text-muted hover:text-fg'}"
+								class="flex h-full w-8 items-center justify-center rounded-[var(--radius-chip)] {view === v ? 'bg-accent-solid text-on-accent' : 'text-muted hover:text-fg'}"
 								onclick={() => setView(v as PeopleView)}
 							>
 								<svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d={icon} /></svg>
@@ -207,9 +214,9 @@
 						{/each}
 					</div>
 					{#if selecting}
-						<button type="button" class="min-h-9 px-2 font-semibold text-accent" onclick={exitSelect}>Done</button>
+						<button type="button" class="h-9 rounded-[var(--radius-input)] px-3 font-semibold text-accent hover:bg-surface-2" onclick={exitSelect}>Done</button>
 					{:else}
-						<button type="button" class="min-h-9 px-2 text-accent" onclick={() => (selecting = true)}>Select</button>
+						<button type="button" class="h-9 rounded-[var(--radius-input)] px-3 text-accent hover:bg-surface-2" onclick={() => (selecting = true)}>Select</button>
 					{/if}
 				</div>
 			</div>
@@ -301,6 +308,9 @@
 					aria-label="Jump to letter"
 					onpointerdown={scrub}
 					onpointermove={scrub}
+					onpointerup={endScrub}
+					onpointercancel={endScrub}
+					onpointerleave={endScrub}
 					data-testid="az-index"
 				>
 					{#each LETTERS as l (l)}
@@ -308,13 +318,23 @@
 							type="button"
 							data-letter={l}
 							disabled={!present.has(l)}
-							class="flex min-h-0 w-6 flex-1 items-center justify-center text-[0.68rem] leading-none font-semibold {present.has(l) ? 'text-accent' : 'text-muted opacity-40'}"
+							class="flex min-h-0 w-6 flex-1 items-center justify-center rounded-[var(--radius-chip)] text-[0.68rem] leading-none font-semibold transition-[background-color,color,transform] duration-100 {present.has(l) ? 'text-accent hover:scale-125 hover:bg-accent-solid hover:text-on-accent' : 'cursor-default text-muted opacity-40'} {bubble?.letter === l ? 'bg-accent-solid text-on-accent' : ''}"
 							onclick={() => jump(l)}
 							aria-label="Jump to {l}"
 						>{l}</button>
 					{/each}
 				</nav>
+				{#if bubble}
+					<div
+						class="pointer-events-none fixed right-10 z-20 flex size-14 -translate-y-1/2 items-center justify-center rounded-[var(--radius-photo-lg)] bg-accent-solid text-2xl font-semibold text-on-accent shadow-lg lg:right-12"
+						style:top="{bubble.y}px"
+						aria-hidden="true"
+					>
+						{bubble.letter}
+					</div>
+				{/if}
 			{/if}
+		</div>
 		</div>
 	</div>
 </div>

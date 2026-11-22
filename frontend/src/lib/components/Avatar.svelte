@@ -10,6 +10,8 @@
 	}
 	let { id, name, initials, color, hasPhoto, size = 'size-12', text = 'text-sm' }: Props = $props();
 	let failed = $state(false);
+	// Same corner radius as cards and buttons; big photos get a slightly larger one.
+	const radius = $derived(/size-(1[6-9]|[2-9]\d)\b/.test(size) ? 'rounded-[var(--radius-photo-lg)]' : 'rounded-[var(--radius-photo)]');
 
 	// Dark initials on light colours, white on dark ones (WCAG relative luminance).
 	function textColor(hex: string): string {
@@ -32,12 +34,12 @@
 		decoding="async"
 		width="80"
 		height="80"
-		class="{size} shrink-0 rounded-[22%] bg-surface-2 object-cover"
+		class="{size} {radius} shrink-0 bg-surface-2 object-cover"
 		onerror={() => (failed = true)}
 	/>
 {:else}
 	<span
-		class="{size} {text} flex shrink-0 items-center justify-center rounded-[22%] font-semibold"
+		class="{size} {text} {radius} flex shrink-0 items-center justify-center font-semibold"
 		style:background-color={color}
 		style:color={textColor(color)}
 		aria-hidden="true"

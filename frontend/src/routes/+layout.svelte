@@ -34,7 +34,7 @@
 <div class="lg:flex">
 	<!-- Desktop sidebar -->
 	<nav class="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-1 border-r border-line p-4 lg:flex" aria-label="Main">
-		<a href="/" class="mb-4 px-3 text-lg font-semibold text-accent">orbit</a>
+		<a href="/" class="mb-4 block text-center text-xl font-semibold tracking-tight text-accent">orbit</a>
 		<a href="/log" class="mb-3 flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-input)] bg-accent-solid px-3 font-medium text-on-accent">
 			<span aria-hidden="true" class="text-lg leading-none">+</span> Log
 		</a>
@@ -73,7 +73,7 @@
 			href="/log"
 			aria-label="Log a hangout or journal entry"
 			aria-current={active('/log') ? 'page' : undefined}
-			class="flex size-12 items-center justify-center rounded-full bg-accent-solid text-on-accent shadow-md"
+			class="flex size-12 items-center justify-center rounded-[var(--radius-photo-lg)] bg-accent-solid text-on-accent shadow-md"
 		>
 			<svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
 		</a>
