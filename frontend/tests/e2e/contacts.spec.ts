@@ -225,3 +225,30 @@ test('reminders show open, above the timeline, with when they are next due', asy
 	const [r, t] = await Promise.all([reminders.boundingBox(), page.getByRole('heading', { name: 'Timeline' }).boundingBox()]);
 	expect(r!.y).toBeLessThan(t!.y);
 });
+
+test('settings stay current after navigating away and back (no reload)', async ({ page }) => {
+	await page.goto('/settings');
+	await page.waitForLoadState('networkidle');
+	await page.getByTestId('dark-themes').getByRole('button', { name: /Catppuccin Mocha/ }).click();
+	await page.getByRole('radio', { name: 'Libre Baskerville' }).click();
+	// In-app navigation only: People, then Home, then Settings (linked at the bottom of Home on phones)
+	await page.locator('a[href="/contacts"]:visible').first().click();
+	await page.waitForURL(/\/contacts$/);
+	await page.locator('a[href="/"]:visible').first().click();
+	await page.waitForURL(/\/$/);
+	await page.locator('a[href="/settings"]:visible').first().click();
+	await page.waitForURL(/\/settings$/);
+	await expect(page.getByTestId('dark-themes').getByRole('button', { name: /Catppuccin Mocha/ })).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.getByRole('radio', { name: 'Libre Baskerville' })).toHaveAttribute('aria-checked', 'true');
+});
+
+test('people view stays current after navigating away and back', async ({ page }) => {
+	await page.goto('/contacts');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Lines' }).click();
+	await page.locator('a[href="/"]:visible').first().click();
+	await page.waitForURL(/\/$/);
+	await page.locator('a[href="/contacts"]:visible').first().click();
+	await page.waitForURL(/\/contacts$/);
+	await expect(page.getByRole('button', { name: 'Lines' })).toHaveAttribute('aria-pressed', 'true');
+});

@@ -102,13 +102,16 @@ cd ~/repos/monica && docker compose up -d --build orbit
 
 Monica allows 60 API requests per minute per user by default. orbit stays under it (`ORBIT_MONICA_RPM`,
 default 50) and shows "Monica is busy" instead of hanging when it runs out. Monica is only on your
-tailnet and you are its only user, so raise both:
+tailnet and you are its only user, so raise both. Monica reads its settings from the `environment:`
+list of the `x-monica` block in `compose.yaml` (`.env` there only fills in `${…}` placeholders):
 
 ```bash
 cd ~/repos/monica
-grep -q '^RATE_LIMIT_PER_MINUTE_API=' .env && sed -i 's/^RATE_LIMIT_PER_MINUTE_API=.*/RATE_LIMIT_PER_MINUTE_API=1000/' .env || echo 'RATE_LIMIT_PER_MINUTE_API=1000' >> .env
+cp compose.yaml compose.yaml.bak-$(date +%Y%m%d-%H%M%S)
+sed -i '/^    APP_TRUSTED_PROXIES:/a\    RATE_LIMIT_PER_MINUTE_API: "1000"' compose.yaml
 echo 'ORBIT_MONICA_RPM=900' >> orbit.env
-docker compose up -d app cron orbit     # recreates them with the new settings (a few seconds)
+docker compose up -d app cron orbit                         # a few seconds of downtime
+docker compose exec app printenv RATE_LIMIT_PER_MINUTE_API  # 1000
 ```
 
 Keep orbit's number a little below Monica's.

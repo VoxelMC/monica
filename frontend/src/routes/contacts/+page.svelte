@@ -15,7 +15,8 @@
 		type SortKey
 	} from '#lib/contacts.js';
 	import Tag from '#lib/components/Tag.svelte';
-	import { savePrefs, type PeopleView } from '#lib/prefs.js';
+	import { type PeopleView } from '#lib/prefs.js';
+	import { updatePrefs } from '#lib/prefs-client.js';
 	import { tagHue } from '#lib/themes.js';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -121,7 +122,7 @@
 	let view = $state<PeopleView>(untrack(() => data.prefs.peopleView));
 	function setView(v: PeopleView) {
 		view = v;
-		savePrefs({ ...data.prefs, peopleView: v });
+		updatePrefs({ ...data.prefs, peopleView: v });
 	}
 
 	// ---- Letter groups and the A–Z index (when sorted by name)

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { FONTS, savePrefs, type FontId, type PeopleView, type Prefs, type ThemeMode } from '#lib/prefs.js';
+	import { FONTS, type FontId, type PeopleView, type Prefs, type ThemeMode } from '#lib/prefs.js';
+	import { updatePrefs } from '#lib/prefs-client.js';
 	import { DARK_THEMES, LIGHT_THEMES, type Theme } from '#lib/themes.js';
 	import { untrack } from 'svelte';
 	import type { PageProps } from './$types';
@@ -9,7 +10,7 @@
 
 	function set<K extends keyof Prefs>(key: K, value: Prefs[K]) {
 		prefs = { ...prefs, [key]: value };
-		savePrefs(prefs); // applies at once and remembers it on this device
+		updatePrefs(prefs); // applies at once and remembers it on this device
 	}
 	// Picking a light (or dark) theme while in the other mode switches the mode,
 	// so the choice is visible right away.
@@ -17,7 +18,7 @@
 		const next: Prefs = { ...prefs, [t.mode]: t.id };
 		if (prefs.mode !== 'system' && prefs.mode !== t.mode) next.mode = t.mode;
 		prefs = next;
-		savePrefs(prefs);
+		updatePrefs(prefs);
 	}
 	const cardVars = (t: Theme) => Object.entries(t.tokens).map(([k, v]) => `--${k}:${v}`).join(';');
 	const seg = 'flex-1 min-h-9 rounded-[var(--radius-chip)] text-sm';
