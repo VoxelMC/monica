@@ -303,7 +303,15 @@ test('contact page: notes have their own section, separate from the timeline', a
 	await expect(notes).toBeVisible();
 	await expect(notes).toContainText('Pursuing registered massage therapist');
 	if (await timeline.count()) await expect(timeline).not.toContainText('Pursuing registered massage therapist');
-	await expect(page.getByRole('heading', { name: /^Notes/ })).toBeVisible();
+	// Notes fold away and stay folded after a reload (remembered on this device)
+	const section = page.getByTestId('notes-section');
+	await section.locator('summary').click();
+	await expect(notes).toBeHidden();
+	await page.reload();
+	await page.waitForLoadState('networkidle');
+	await expect(page.getByTestId('notes')).toBeHidden();
+	await page.getByTestId('notes-section').locator('summary').click();
+	await expect(page.getByTestId('notes')).toBeVisible();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });
 

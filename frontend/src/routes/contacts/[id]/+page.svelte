@@ -26,6 +26,23 @@
 	const EVENTS_SHOWN = 10;
 	const NOTES_SHOWN = 5;
 	const expanded = new SvelteSet<number>();
+	// Notes can be folded; the choice is remembered on this device.
+	let notesOpen = $state(true);
+	$effect(() => {
+		try {
+			notesOpen = localStorage.getItem('orbit-notes-open') !== 'false';
+		} catch {
+			/* storage unavailable: stay open */
+		}
+	});
+	function toggleNotes(e: Event) {
+		notesOpen = (e.currentTarget as HTMLDetailsElement).open;
+		try {
+			localStorage.setItem('orbit-notes-open', String(notesOpen));
+		} catch {
+			/* ignore */
+		}
+	}
 	let removing = $state<TimelineItem | null>(null);
 	let notice = $state<{ ok: boolean; message: string } | null>(null);
 	// A new contact page (e.g. via a relationship link) starts fresh
@@ -251,7 +268,13 @@
 					<p class="text-sm text-muted">No notes yet.</p>
 				{/if}
 			{/snippet}
-			{@render card(notes.length ? `Notes · ${notes.length}` : 'Notes', notesBody)}
+			<details open={notesOpen} ontoggle={toggleNotes} class="group rounded-[var(--radius-card)] border border-line bg-surface" data-testid="notes-section">
+				<summary class="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-base font-semibold select-none [&::-webkit-details-marker]:hidden">
+					<span>Notes{#if notes.length}<span class="ml-2 rounded-[var(--radius-chip)] bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">{notes.length}</span>{/if}</span>
+					<svg viewBox="0 0 24 24" class="size-4 transition-transform duration-150 group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+				</summary>
+				<div class="px-4 pb-4">{@render notesBody()}</div>
+			</details>
 		</div>
 
 		<!-- Side panels -->
