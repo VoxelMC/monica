@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# patch-orbit: update orbit to the latest code on the `orbit` branch.
+# Run as ubc. Install as a copy (not a symlink) so it only changes when you choose:
+#   install -m 755 ~/repos/orbit/frontend/scripts/patch-orbit ~/.local/bin/patch-orbit
+#
+#   patch-orbit            backup, pull, rebuild orbit, check health
+#   patch-orbit --check    only check health
+set -euo pipefail
+
+ORBIT_DIR="$HOME/repos/orbit"
+MONICA_DIR="$HOME/repos/monica"
+BACKUP="$HOME/backups/monica/backup.sh"
+
+say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+warn() { printf '\n\033[31m!! %s\033[0m\n' "$*" >&2; }
+
+health() {
+	say "Checking orbit"
+	cd "$MONICA_DIR"
+	local out=""
+	for _ in $(seq 1 15); do
+		out=$(docker compose exec -T orbit node -e "fetch('http://127.0.0.1:3000/health').then(r=>r.text()).then(t=>console.log(/Connected/.test(t)?'connected':'not-connected', /writes refused/.test(t)?'read-only':'WRITES-ENABLED')).catch(()=>console.log('down'))" 2>/dev/null || echo down)
+		[[ "$out" == down* ]] || break
+		sleep 2
+	done
+	case "$out" in
+		"connected read-only") echo "orbit is up, connected to Monica, read-only." ;;
+		"connected WRITES-ENABLED") echo "orbit is up and connected. Note: ORBIT_READ_ONLY is off." ;;
+		not-connected*) docker compose logs --tail 20 orbit; warn "orbit is running but cannot reach Monica (see logs above)."; return 1 ;;
+		*) docker compose logs --tail 20 orbit; warn "orbit did not come up (see logs above)."; return 1 ;;
+	esac
+}
+
+if [[ "${1:-}" == "--check" ]]; then health || exit 1; exit 0; fi
+
+say "Fetching updates"
+cd "$ORBIT_DIR"
+git fetch --quiet origin orbit
+prev=$(git rev-parse --short HEAD)
+incoming=$(git log --oneline HEAD..origin/orbit)
+if [[ -z "$incoming" ]]; then
+	echo "Already up to date ($prev)."
+	health || exit 1
+	exit 0
+fi
+echo "$incoming"
+
+say "Backing up Monica"
+"$BACKUP"
+
+say "Updating code"
+git pull --ff-only --quiet origin orbit
+now=$(git rev-parse --short HEAD)
+echo "$prev -> $now"
+
+say "Rebuilding orbit (Monica keeps running)"
+cd "$MONICA_DIR"
+docker compose up -d --build orbit
+
+if ! health; then
+	echo "To go back: cd $ORBIT_DIR && git checkout $prev && cd $MONICA_DIR && docker compose up -d --build orbit"
+	exit 1
+fi
+say "Done: orbit $now"

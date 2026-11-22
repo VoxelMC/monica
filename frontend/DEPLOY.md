@@ -80,6 +80,19 @@ docker compose logs --tail 20 orbit
 ## Updating
 
 ```bash
+patch-orbit            # backup, pull, rebuild orbit, health check
+patch-orbit --check    # health check only
+```
+
+Install once (a copy, so it only changes when you re-install it):
+
+```bash
+mkdir -p ~/.local/bin && install -m 755 ~/repos/orbit/frontend/scripts/patch-orbit ~/.local/bin/patch-orbit
+```
+
+By hand, it does:
+
+```bash
 ~/backups/monica/backup.sh
 cd ~/repos/orbit && git pull
 cd ~/repos/monica && docker compose up -d --build orbit
