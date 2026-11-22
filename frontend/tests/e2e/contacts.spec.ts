@@ -202,3 +202,15 @@ test('clickable controls show the pointer cursor', async ({ page, isMobile }) =>
 	expect(await cursor('[data-testid="az-index"] button:not([disabled])')).toBe('pointer');
 	expect(await cursor('[data-testid="az-index"] button[disabled]')).toBe('default');
 });
+
+test('people header does not move when scrolling starts', async ({ page }) => {
+	await page.goto('/contacts');
+	await page.waitForLoadState('networkidle');
+	const top = async (y: number) => {
+		await page.evaluate((y) => window.scrollTo(0, y), y);
+		await page.waitForTimeout(60);
+		return Math.round(await page.locator('h1').evaluate((e) => e.getBoundingClientRect().top));
+	};
+	const atRest = await top(0);
+	for (const y of [5, 20, 200]) expect(await top(y)).toBe(atRest);
+});

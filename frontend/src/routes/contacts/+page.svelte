@@ -173,7 +173,7 @@
 	</li>
 {/snippet}
 
-<div class="px-4 pt-[max(1rem,env(safe-area-inset-top))] lg:flex lg:p-0">
+<div class="px-4 lg:flex lg:p-0">
 	<!-- Desktop: tags in their own column -->
 	<!-- Desktop: a second sidebar for tags, right next to the main one -->
 	<aside class="sticky top-0 hidden h-dvh w-52 shrink-0 overflow-y-auto border-r border-line px-3 pt-6 pb-6 lg:block" aria-label="Filter by tag">
@@ -193,10 +193,11 @@
 		<a href="/tags" class="mt-4 block px-2 text-sm text-muted underline-offset-2 hover:underline">All tags →</a>
 	</aside>
 
-	<div class="min-w-0 lg:flex-1 lg:px-8 lg:pt-4">
+	<div class="min-w-0 lg:flex-1 lg:px-8">
 		<div class="lg:max-w-5xl">
-		<header class="sticky top-0 z-10 -mx-4 border-b border-line bg-bg px-4 pt-3 pb-3 lg:mx-0 lg:px-0">
-			<div class="mb-3 flex items-center justify-between gap-2">
+		<!-- Top padding lives inside the sticky header, so it never moves when scrolling starts -->
+		<header class="sticky top-0 z-10 -mx-4 border-b border-line bg-bg px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2.5 lg:mx-0 lg:px-0 lg:pt-5">
+			<div class="mb-2.5 flex items-center justify-between gap-2">
 				<h1 class="text-2xl font-semibold">People <span class="text-base font-normal text-muted tabular" data-testid="count">{shown.length === data.contacts.length ? data.contacts.length : `${shown.length} of ${data.contacts.length}`}</span></h1>
 				<div class="flex h-9 items-center gap-2">
 					<div class="flex h-9 items-center gap-0.5 rounded-[var(--radius-input)] border border-control p-0.5" role="group" aria-label="View">
@@ -282,7 +283,7 @@
 					{#each groups as g (g.letter)}
 						<section aria-labelledby={g.letter ? `letter-${g.letter}` : undefined}>
 							{#if g.letter}
-								<h2 id="letter-{g.letter}" class="scroll-mt-44 pt-3 pb-1 text-sm font-semibold text-muted lg:scroll-mt-36">{g.letter}</h2>
+								<h2 id="letter-{g.letter}" class="scroll-mt-40 pt-3 pb-1 text-sm font-semibold text-muted lg:scroll-mt-32">{g.letter}</h2>
 							{/if}
 							<ul class={view === 'cards' ? 'grid gap-2 sm:grid-cols-2 xl:grid-cols-3' : 'border-y border-line'}>
 								{#each g.contacts as c (c.id)}
