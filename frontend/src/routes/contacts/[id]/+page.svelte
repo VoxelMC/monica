@@ -3,8 +3,8 @@
 	import ConfirmRemove from '#lib/components/ConfirmRemove.svelte';
 	import PhotoPicker from '#lib/components/PhotoPicker.svelte';
 	import RemindMe from '#lib/components/RemindMe.svelte';
+	import ContactTags from '#lib/components/ContactTags.svelte';
 	import ReminderList from '#lib/components/ReminderList.svelte';
-	import Tag from '#lib/components/Tag.svelte';
 	import type { TimelineItem } from '#lib/contact.js';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { fullDate, relativeDate } from '#lib/contacts.js';
@@ -140,13 +140,7 @@
 			{/if}
 		</div>
 	</header>
-	{#if c.tags.length}
-		<ul class="mb-3 flex flex-wrap gap-1" aria-label="Tags">
-			{#each c.tags as t (t)}
-				<li><Tag name={t} href="/contacts?tag={encodeURIComponent(t)}" size="md" /></li>
-			{/each}
-		</ul>
-	{/if}
+	<ContactTags tags={c.tags} allTags={data.allTags} ondone={(r) => (notice = r)} />
 	<div class="mb-3 flex gap-2">
 		<a href="/log?people={c.id}" class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[var(--radius-input)] border border-accent-solid font-medium text-accent">
 			<span aria-hidden="true">+</span> Log a catch-up
@@ -172,7 +166,7 @@
 
 			{#if notice}
 				<p class="rounded-[var(--radius-card)] border p-3 text-sm {notice.ok ? 'border-accent-solid bg-accent-soft text-on-accent-soft' : 'border-attention text-attention'}" role="status" data-testid="remove-notice">
-					{notice.message}{#if notice.audit !== false} <a class="underline" href="/audit">Audit log</a>{/if}
+					{notice.message}{#if notice.audit !== false}{' '}<a class="underline" href="/audit">Audit log</a>{/if}
 				</p>
 			{/if}
 

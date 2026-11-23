@@ -419,3 +419,16 @@ test('reminders: past times and unknown people are refused', async ({ request })
 	const nobody = await request.post('/reminders?/create', { form: { contactId: '999999', dueAt: new Date(Date.now() + 3600_000).toISOString(), timeZone: 'UTC', note: '' }, headers });
 	expect(nobody.status()).toBe(400);
 });
+
+test('tags on a contact page: "+ Add tag" even with no tags; read-only refuses', async ({ page }) => {
+	await page.goto('/contacts/13'); // no tags on staging
+	await page.waitForLoadState('networkidle');
+	const tags = page.getByTestId('contact-tags');
+	await tags.getByRole('button', { name: '+ Add tag' }).click();
+	const form = page.getByTestId('add-tag-form');
+	await expect(form.getByTestId('add-tag-save')).toBeDisabled();
+	await form.getByLabel('Existing tags').locator('button').first().click();
+	await form.getByTestId('add-tag-save').click();
+	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
+	await expect(tags.locator('a')).toHaveCount(0); // nothing added
+});

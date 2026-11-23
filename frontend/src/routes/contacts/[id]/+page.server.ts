@@ -2,6 +2,8 @@ import { error, fail } from '@sveltejs/kit';
 import { removeEntry } from '#lib/server/remove-entry.js';
 import { savePhoto } from '#lib/server/photo-save.js';
 import { openReminders } from '#lib/server/reminders.js';
+import { saveTags } from '#lib/server/tags-save.js';
+import { listContacts, listTagNames, listTags } from '#lib/server/monica/contacts.js';
 import { ContactNotFound, loadContactPage } from '#lib/server/monica/contact-page.js';
 import { entriesMentioning } from '#lib/server/journal-save.js';
 import { journalEntry } from '#lib/server/monica/schemas.js';
@@ -12,7 +14,10 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ params, setHeaders }) => {
 	if (!/^\d{1,10}$/.test(params.id)) error(404, 'Contact not found');
 	try {
-		const contact = await loadContactPage(monica, Number(params.id));
+		const [contact, allTags] = await Promise.all([
+			loadContactPage(monica, Number(params.id)),
+			listTagNames(monica).catch(() => [] as string[]) // suggestions only; the page works without them
+		]);
 		// Journal entries orbit linked to this person (exact links from its own database)
 		const ids = new Set(entriesMentioning(getDb(), contact.id));
 		const mentionedIn = ids.size
@@ -22,6 +27,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 		return {
 			contact,
 			mentionedIn,
+			allTags,
 			timedReminders: openReminders(getDb(), contact.id),
 			ntfyConfigured: settings.ntfyConfigured,
 			monicaLink: settings.publicMonicaUrl ? `${settings.publicMonicaUrl}/people/${encodeURIComponent(contact.hashId)}` : null
@@ -37,6 +43,14 @@ export const actions: Actions = {
 	// Remove a hangout, note or journal entry (confirmed in the UI; see remove-entry.ts)
 	remove: async ({ request }) => {
 		const result = await removeEntry(getGuards(), await request.formData());
+		return result.ok ? result : fail(400, result);
+	},
+	// Add or remove one tag on this person (same guarded writes as bulk tags; see tags-save.ts)
+	tag: async ({ params, request }) => {
+		const form = await request.formData();
+		const raw = { mode: form.get('mode'), contactIds: [Number(params.id)], tag: String(form.get('tag') ?? '') };
+		const [contacts, tags] = await Promise.all([listContacts(monica), listTags(monica)]);
+		const result = await saveTags(getGuards(), raw, contacts, tags);
 		return result.ok ? result : fail(400, result);
 	},
 	// Change the profile photo (upload + set as avatar; see photo-save.ts)
