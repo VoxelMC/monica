@@ -176,10 +176,11 @@ describe('allowlist', () => {
 			'POST /api/notes',
 			'POST /api/photos',
 			'PUT /api/contacts/{id}',
+			'PUT /api/contacts/{id}', // add a birthday; correct a birthday
 			'PUT /api/contacts/{id}/avatar'
 		]);
-		// The only contact updates are the birthday and avatar rules, and contacts can never be deleted
-		expect(WRITE_ALLOWLIST.filter((r) => r.method === 'PUT').map((r) => r.key)).toEqual(['contact.birthday', 'contact.avatar']);
+		// The only contact updates are the birthday (add, correct) and avatar rules, and contacts can never be deleted
+		expect(WRITE_ALLOWLIST.filter((r) => r.method === 'PUT').map((r) => r.key)).toEqual(['contact.birthday', 'contact.birthday.change', 'contact.avatar']);
 		expect(WRITE_ALLOWLIST.some((r) => r.method === 'DELETE' && r.path.includes('contacts'))).toBe(false);
 		expect(WRITE_ALLOWLIST.some((r) => r.path.endsWith('/unsetTags'))).toBe(false);
 	});
@@ -487,6 +488,43 @@ describe('contact photos (POST /api/photos, then PUT /api/contacts/{id}/avatar)'
 		await expect(ro.guards.update('contact.avatar', 7, { source: 'photo', photo_id: 9 }, 'x')).rejects.toMatchObject({ reason: 'read-only' });
 		await expect(ro.guards.create('photo.upload', { contact_id: 7, data: JPEG })).rejects.toMatchObject({ reason: 'read-only' });
 		expect(calls).toHaveLength(0);
+		expect(ro.calls).toHaveLength(0);
+	});
+});
+
+describe('contact.birthday.change (PUT, only when a birthday exists)', () => {
+	const WITH = {
+		data: {
+			id: 7, object: 'contact', first_name: 'Ada', description: 'Mathematician', is_dead: false,
+			information: { dates: { birthdate: { is_age_based: false, is_year_unknown: false, date: '1990-12-01T00:00:00Z' }, deceased_date: { date: null } } },
+			updated_at: 'T1'
+		}
+	};
+	const WITHOUT = { data: { ...WITH.data, information: { dates: { birthdate: { date: null }, deceased_date: { date: null } } } } };
+	const changes = { is_birthdate_known: true, birthdate_day: 10, birthdate_month: 12, birthdate_year: 1990, birthdate_is_age_based: false, birthdate_add_reminder: true };
+
+	it('reads the contact, then PUTs the new birthday plus what Monica would otherwise blank', async () => {
+		const { guards, calls, rows } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: WITH }, { body: WITH }] });
+		await guards.update('contact.birthday.change', 7, changes, 'T1');
+		expect(calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual(['GET /api/contacts/7', 'PUT /api/contacts/7']);
+		expect(calls[1].body).toEqual({ first_name: 'Ada', description: 'Mathematician', is_deceased: false, is_deceased_date_known: false, ...changes });
+		expect(JSON.parse(rows()[0].beforeJson!).information.dates.birthdate.date).toBe('1990-12-01T00:00:00Z'); // old date on record
+	});
+	it('refuses a contact with no birthday (that is contact.birthday), with no PUT', async () => {
+		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: WITHOUT }] });
+		await expect(guards.update('contact.birthday.change', 7, changes, 'T1')).rejects.toMatchObject({ reason: 'precondition' });
+		expect(calls.map((c) => c.method)).toEqual(['GET']);
+	});
+	it('refuses age-based, unknown or partial dates, other fields, conflicts and read-only', async () => {
+		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: WITH }] });
+		for (const bad of [{ ...changes, birthdate_is_age_based: true }, { ...changes, is_birthdate_known: false }, { ...changes, birthdate_day: undefined }, { ...changes, birthdate_add_reminder: 'yes' }]) {
+			await expect(guards.update('contact.birthday.change', 7, bad as Record<string, unknown>, 'T1')).rejects.toMatchObject({ reason: 'invalid-body' });
+		}
+		await expect(guards.update('contact.birthday.change', 7, { ...changes, nickname: 'x' }, 'T1')).rejects.toMatchObject({ reason: 'field-not-editable' });
+		expect(calls).toHaveLength(0);
+		await expect(guards.update('contact.birthday.change', 7, changes, 'T0')).rejects.toBeInstanceOf(ConflictError);
+		const ro = setup({ readOnly: true, allowlist: [...WRITE_ALLOWLIST], replies: [] });
+		await expect(ro.guards.update('contact.birthday.change', 7, changes, 'T1')).rejects.toMatchObject({ reason: 'read-only' });
 		expect(ro.calls).toHaveLength(0);
 	});
 });

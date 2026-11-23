@@ -22,6 +22,8 @@ export interface ContactPage {
 	company: string | null;
 	isDead: boolean;
 	birthday: BirthdayInfo | null;
+	/** The stored date, for correcting it (null if none or deceased). */
+	birthdayDate: { month: number; day: number; year: number | null } | null;
 	tags: string[];
 	phones: ContactFieldView[];
 	emails: ContactFieldView[];
@@ -133,6 +135,7 @@ export async function loadContactPage(client: MonicaClient, id: number, today = 
 		company: detail.information.career?.company ?? null,
 		isDead: detail.is_dead,
 		birthday: b && !detail.is_dead ? birthdayInfo(b, today) : null,
+		birthdayDate: b && !detail.is_dead ? { month: b.month, day: b.day, year: b.ageIsApprox ? null : b.year } : null,
 		tags: detail.tags.map((t) => t.name),
 		phones: fields.filter((f) => f.contact_field_type.type === 'phone').map(view),
 		emails: fields.filter((f) => f.contact_field_type.type === 'email').map(view),

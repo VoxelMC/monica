@@ -319,6 +319,12 @@ Writes, in this order, each with its own guard test and owner approval of real s
 
 - Tags on a contact page (2026-11-23): "+ Add tag" (dashed chip, shown even with no tags; suggestions from Monica's tags or a new name) and a × on each tag's corner (on hover with a mouse, always on touch) with an inline confirm. Same `contact.tags.add` / `contact.tags.remove` writes as bulk tags, one contact. Staging: Discord added to and removed from Josh (13), audit #163-#164; record identical before and after. Several tags can be ticked at once (plus a typed new one, previewed as "Adds …"); still one guarded request per tag, stopping at the first failure. Staging: Discord and Nambi added to Josh in one go, then removed, audit #223-#226; record identical.
 
+**Correcting a birthday (requested 2026-11-23; built and run on staging, awaiting approval)**
+
+- `contact.birthday.change`: `PUT /api/contacts/{id}`, same fields and fetch-merge-send as `contact.birthday`, but only for contacts that already have a birthday (refused otherwise), and only exact dates (never age-based). "Edit" next to the birthday on a contact page; the dialog shows Now (struck through) and New.
+- Monica's UpdateBirthdayInformation deletes the birthday's special date and its yearly reminder, then creates new ones. orbit sends `birthdate_add_reminder: true` only if the contact has a birthday reminder now (the reminder Monica marks `delible: false`), so a correction never adds or drops one.
+- Staging 2026-11-23, Lioh (1): 3 Aug 1999 → 13 Aug 1999 (audit #287): diff showed only the birthday, its one reminder's date and `updated_at` changed; still exactly one reminder. Restored to 3 Aug (#288). Monica gives the recreated reminder a new id.
+
 **Removing hangouts, notes and journal entries (owner decision 2026-11-23)**
 
 - `DELETE /api/activities/{id}`, `/api/notes/{id}`, `/api/journal/{id}`; never contacts or anything else. The transport refuses any other DELETE path and any DELETE not issued by `guards.remove`.

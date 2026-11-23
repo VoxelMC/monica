@@ -1,6 +1,8 @@
 import { error, fail } from '@sveltejs/kit';
 import { removeEntry } from '#lib/server/remove-entry.js';
 import { savePhoto } from '#lib/server/photo-save.js';
+import { changeBirthday } from '#lib/server/birthday-save.js';
+import { reminder } from '#lib/server/monica/schemas.js';
 import { openReminders } from '#lib/server/reminders.js';
 import { addTagsToContact, saveTags } from '#lib/server/tags-save.js';
 import { listContacts, listTagNames, listTags } from '#lib/server/monica/contacts.js';
@@ -54,6 +56,20 @@ export const actions: Actions = {
 			form.get('mode') === 'add'
 				? await addTagsToContact(getGuards(), id, form.getAll('tag').map(String), contacts, tags) // several at once
 				: await saveTags(getGuards(), { mode: form.get('mode'), contactIds: [id], tag: String(form.get('tag') ?? '') }, contacts, tags);
+		return result.ok ? result : fail(400, result);
+	},
+	// Correct an existing birthday (see changeBirthday). Monica's birthday reminder is the
+	// one it marks non-deletable; keep a yearly reminder only if there is one now.
+	birthday: async ({ params, request }) => {
+		const form = await request.formData();
+		form.set('contactId', params.id); // the page's contact, never one from the form
+		let hadReminder: boolean;
+		try {
+			hadReminder = (await monica.getAll(`/api/contacts/${Number(params.id)}/reminders`, reminder)).some((r) => (r as { delible?: boolean }).delible === false);
+		} catch {
+			return fail(400, { ok: false, dryRun: false, message: 'Monica could not be reached. Nothing was changed.' });
+		}
+		const result = await changeBirthday(getGuards(), form, hadReminder);
 		return result.ok ? result : fail(400, result);
 	},
 	// Change the profile photo (upload + set as avatar; see photo-save.ts)

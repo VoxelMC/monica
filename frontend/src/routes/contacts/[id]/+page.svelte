@@ -4,6 +4,7 @@
 	import PhotoPicker from '#lib/components/PhotoPicker.svelte';
 	import RemindMe from '#lib/components/RemindMe.svelte';
 	import ContactTags from '#lib/components/ContactTags.svelte';
+	import BirthdayEdit from '#lib/components/BirthdayEdit.svelte';
 	import ReminderList from '#lib/components/ReminderList.svelte';
 	import type { TimelineItem } from '#lib/contact.js';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -135,7 +136,8 @@
 			{#if c.birthday}
 				<p class="mt-1 text-sm" data-testid="birthday">
 					<span class={c.birthday.daysUntil <= 30 ? 'font-medium text-attention' : 'text-muted'}>{birthdayLine(c.birthday)}</span>
-					<span class="text-muted"> · {c.birthday.label}{#if c.birthday.age !== null} · {c.birthday.ageIsApprox ? '~' : ''}{c.birthday.age} y/o{/if}</span>
+					<span class="text-muted">{' · '}{c.birthday.label}{c.birthday.age !== null ? ` · ${c.birthday.ageIsApprox ? '~' : ''}${c.birthday.age} y/o` : ''}</span>
+					{#if c.birthdayDate}<span class="text-muted">{' · '}</span><BirthdayEdit current={c.birthdayDate} currentLabel={c.birthday.label} updatedAt={c.updatedAt} name={c.name} ondone={(r) => (notice = r)} />{/if}
 				</p>
 			{/if}
 		</div>

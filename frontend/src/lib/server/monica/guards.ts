@@ -83,6 +83,21 @@ export const WRITE_ALLOWLIST: readonly WriteRule[] = [
 		toPayload: basePayloadFromContact,
 		refuseIf: (current) => (contactHasBirthday(current) ? 'this contact already has a birthday in Monica' : null)
 	},
+	// Correcting a birthday (2026-11-23): only for contacts that already have one, and
+	// only an exact date (never age-based). Monica replaces the birthday and its yearly
+	// reminder; the caller keeps the reminder only if there is one now.
+	{
+		key: 'contact.birthday.change',
+		method: 'PUT',
+		path: '/api/contacts/{id}',
+		editableFields: ['is_birthdate_known', 'birthdate_day', 'birthdate_month', 'birthdate_year', 'birthdate_is_age_based', 'birthdate_add_reminder'],
+		toPayload: basePayloadFromContact,
+		validate: (b) =>
+			b.is_birthdate_known === true && b.birthdate_is_age_based === false && typeof b.birthdate_add_reminder === 'boolean' && Number.isInteger(b.birthdate_day) && Number.isInteger(b.birthdate_month)
+				? null
+				: 'an exact birthday (day and month) is required',
+		refuseIf: (current) => (contactHasBirthday(current) ? null : 'this contact has no birthday yet (add one instead)')
+	},
 	// Bulk tags (2026-11-23): one tag on one contact per request. setTags only adds;
 	// unsetTag only detaches (the tag stays in Monica). unsetTags (all tags) is never allowed.
 	{ key: 'contact.tags.add', method: 'POST', path: '/api/contacts/{id}/setTags', editableFields: ['tags'], validate: oneTagName },

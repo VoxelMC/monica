@@ -450,3 +450,22 @@ test('tags on a contact page: several existing tags at once, plus a typed new on
 	await form.getByTestId('add-tag-save').click();
 	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
 });
+
+test('birthday: correct an existing one; shows old and new, refuses no-op and impossible dates; read-only refuses', async ({ page }) => {
+	await page.goto('/contacts/1'); // has a birthday on staging
+	await page.waitForLoadState('networkidle');
+	await expect(page.getByTestId('birthday')).toContainText(/\d{4}\s+·\s+\d+ y\/o\s+·\s+Edit/);
+	await page.getByTestId('edit-birthday').click();
+	const dialog = page.getByRole('dialog');
+	const save = dialog.getByTestId('bday-save');
+	await expect(save).toBeDisabled(); // unchanged
+	await dialog.getByTestId('bday-day').fill('31');
+	await dialog.getByLabel('Month').selectOption('2');
+	await expect(dialog.getByRole('alert')).toContainText('does not exist');
+	await expect(save).toBeDisabled();
+	await dialog.getByTestId('bday-day').fill('14');
+	await expect(dialog.getByTestId('bday-compare')).toContainText('New');
+	await expect(dialog.getByTestId('bday-compare')).toContainText('February 14');
+	await save.click();
+	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
+});
