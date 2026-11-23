@@ -323,6 +323,14 @@ Writes, in this order, each with its own guard test and owner approval of real s
 - Each removal: confirmation dialog (what goes, consequences, a tick to unlock the button; the server re-checks the tick), fresh GET with the full record saved to the audit log, conflict check on `updated_at`, then DELETE.
 - Staging run 2026-11-23: removed note #2 and activity #1 (the slice 4 test data), audit rows #25-#26; contacts 7 and 8 and note #1 untouched. Awaiting owner approval.
 
+**Changing a contact's photo (requested 2026-11-23; built and run on staging, awaiting approval)**
+
+- Why: Monica 4.1.2 ignores a photo sent from the phone over CardDAV when the contact already has one (`ImportVCard::importPhoto` skips it), then syncs its own photo back, so a phone edit is overwritten. Uploading through the API makes Monica's copy the new one; phones get it on their next sync.
+- `photo.upload`: `POST /api/photos` `{contact_id, data}`, `data` a base64 JPEG/PNG/WebP data URL. The guard checks the type from the bytes (not only the label), refuses SVG and anything over 350 KB (adapter-node accepts 512 KB bodies). The browser crops to a square (slider for which part), shrinks to 800 px and re-encodes as JPEG first.
+- `contact.avatar`: `PUT /api/contacts/{id}/avatar` `{source: "photo", photo_id}`. Fresh GET of the contact first (full record to the audit log), conflict check on `updated_at`. Only `source` and `photo_id` are sent; Monica's UpdateAvatar changes nothing else.
+- Old photos stay in Monica (no DELETE). Avatar URLs in orbit carry the photo's file name (`?v=`), so neither orbit's cache nor the browser's shows the old one.
+- Staging 2026-11-23, Jacob (3), who already had a photo: probe through the guards (audit #78 upload, #79 avatar), then twice through the UI in Firefox at phone size (#80-#81, #82-#83). Diff of the contact before/after: only the avatar URL and `updated_at` changed; the old photo (id 7) is still in his Photos; the upload alone does not change the contact's `updated_at`. Restored his original photo afterwards (#162). Left on staging: three unused test photos on Jacob.
+
 **Logging hangouts and journal entries (requested 2026-11-21; read-only parts built, saving with this slice)**
 
 Built: a **Log** button in the middle of the phone tab bar (top of the sidebar on desktop) opening `/log`; "Log a catch-up" on each contact page and "Log catch-up…" in select mode open it with those people filled in; a **Diary** page lists activities and journal entries, newest first. Save is disabled; Preview shows the exact request.
@@ -366,10 +374,18 @@ Batch rules: show the exact list of contacts and the change before sending; one 
 
 **Done when:** these work without writing anything new into Monica's database, and the extension DB is in the nightly backup.
 
+**Timed reminders (requested 2026-11-23; built, tested on staging with a local fake ntfy)**
+
+- "Remind me…" on a contact page: a time (In 1 hour, In 3 hours, This evening, Tomorrow morning, or exact) and an optional note, e.g. "message Sam after their exam". Monica's own reminders are date-only and arrive by email at one fixed hour for the whole account, so these live in orbit and never touch Monica.
+- Stored in UTC with the IANA time zone they were picked in (`reminders` table, migration 0002). A loop in the server checks every 30 s and publishes due ones to ntfy (`ORBIT_NTFY_URL`, optional `ORBIT_NTFY_TOKEN`); tapping the notification opens the contact (`ORBIT_PUBLIC_URL`). Failed sends retry after 1, 2, 4 … minutes (at most hourly, 20 tries); reminders missed while orbit was down go out on start, marked "late". Without ntfy settings nothing is sent and the UI says so.
+- Shown on the contact page (Reminders card), Home, and `/reminders` (open + recently done). Done, +1 hour, +1 day, Remove. These change orbit's database only; they are not Monica writes, so they are not in the audit log.
+- The reminder keeps the contact's name (like `journal_mentions`), so a notification can go out even while Monica is busy or down.
+
+
 ### Backlog — features found while using Monica
 
 - **Merge duplicate contacts.** Monica 4.1.2 has no merge button, so duplicates (e.g. from a DAVx⁵ sync) must be fixed by hand and deleted. Build a merge screen: pick two contacts side by side, choose which value wins per field, move notes, activities, reminders, gifts and tags onto the kept contact, then delete the other. Uses fetch-merge-send for the kept contact, logs both records in the audit log, and needs explicit confirmation — this is the one place the app is allowed to delete, and only after everything has been moved.
-- **Photos and avatars.** Show contact photos and allow uploading or replacing one (API verified, see above).
+- **Photos and avatars.** Showing photos is built; replacing one is in slice 4 ("Changing a contact's photo").
 
 ## Extension database
 
@@ -384,13 +400,15 @@ Features Monica lacks are stored in a separate SQLite file owned by the new app,
 | `trips` | `id`, `name`, `destination`, `start_date`, `end_date` | Trips for souvenir lists |
 | `souvenir_list` | `trip_id`, `monica_contact_id`, `note`, `done` | Who to bring something back for |
 | `audit_log` | `id`, `at`, `method`, `endpoint`, `monica_id`, `before_json`, `after_json`, `dry_run`, `result` | Every write sent (or not sent) to Monica |
+| `journal_mentions` | `journal_entry_id`, `monica_contact_id`, `name`, `created_at` | Who a journal entry mentions (built) |
+| `reminders` | `monica_contact_id`, `contact_name`, `note`, `due_at` (UTC), `time_zone`, `sent_at`, `done_at`, `attempts`, `last_attempt_at`, `last_error` | Timed reminders sent through ntfy (built) |
 
 **Rules**
 
 - Use Drizzle migrations; never edit tables by hand.
 - Store the file on a Docker volume included in the nightly backup.
 - If a Monica contact is deleted, its extension rows are kept and flagged, not deleted, until I clean them up by hand.
-- Never copy Monica data into this database except inside `audit_log` snapshots. Monica stays the single source for names, fields and history.
+- Never copy Monica data into this database except inside `audit_log` snapshots, and a contact's display name in `journal_mentions` and `reminders` (so they read well without a Monica call). Monica stays the single source for names, fields and history.
 
 ## Design system and UI guidelines
 

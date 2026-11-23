@@ -24,3 +24,21 @@ export const journalMentions = sqliteTable('journal_mentions', {
 	name: text('name').notNull(),
 	createdAt: text('created_at').notNull()
 });
+
+// Timed reminders (2026-11-23): "message Sam at 15:40". orbit's own data, sent
+// to the owner's phone through ntfy. Monica's reminders are date-only and come
+// by email at one fixed hour, so these live here and never touch Monica.
+export const reminders = sqliteTable('reminders', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	monicaContactId: integer('monica_contact_id').notNull(),
+	contactName: text('contact_name').notNull(),
+	note: text('note').notNull(), // may be empty
+	dueAt: text('due_at').notNull(), // ISO UTC, e.g. 2026-11-24T23:40:00.000Z
+	timeZone: text('time_zone').notNull(), // IANA zone the owner picked the time in
+	createdAt: text('created_at').notNull(),
+	sentAt: text('sent_at'), // when the notification was delivered to ntfy
+	doneAt: text('done_at'), // marked done (or dismissed) by the owner
+	attempts: integer('attempts').notNull().default(0),
+	lastAttemptAt: text('last_attempt_at'),
+	lastError: text('last_error')
+});

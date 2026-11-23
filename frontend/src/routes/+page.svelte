@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Avatar from '#lib/components/Avatar.svelte';
+	import ReminderList from '#lib/components/ReminderList.svelte';
 	import { fullDate, relativeDate } from '#lib/contacts.js';
 	import { catchUpSoon, recentlyChanged, upcomingBirthdays } from '#lib/dashboard.js';
 	import type { PageProps } from './$types';
@@ -49,6 +50,14 @@
 	</div>
 
 	<div class="grid gap-3 lg:grid-cols-2">
+		{#if data.reminders.length}
+			{#snippet remindersBody()}
+				<ReminderList items={data.reminders} />
+				<a href="/reminders" class="mt-2 inline-block text-sm text-accent">All reminders</a>
+				{#if !data.ntfyConfigured}<p class="mt-1 text-xs text-attention">Phone notifications are off (ORBIT_NTFY_URL not set).</p>{/if}
+			{/snippet}
+			{@render section('Reminders', data.reminders.length, remindersBody, 'timed-reminders')}
+		{/if}
 		{#snippet bdays()}
 			{#snippet sub(label: string)}
 				<h3 class="mt-1 mb-1 text-xs font-semibold tracking-wider text-muted uppercase">{label}</h3>
@@ -135,5 +144,5 @@
 		{@render section('Recently added or updated', 0, recentBody, 'recent')}
 	</div>
 
-	<p class="mt-8 flex justify-center gap-6 text-sm lg:hidden"><a href="/settings" class="text-muted underline underline-offset-2">Settings</a><a href="/health" class="text-muted underline underline-offset-2">System health</a></p>
+	<p class="mt-8 flex justify-center gap-6 text-sm lg:hidden"><a href="/reminders" class="text-muted underline underline-offset-2">Reminders</a><a href="/settings" class="text-muted underline underline-offset-2">Settings</a><a href="/health" class="text-muted underline underline-offset-2">System health</a></p>
 </div>

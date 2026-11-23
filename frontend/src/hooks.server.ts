@@ -5,7 +5,13 @@ import { htmlAttrs, parsePrefs, PREFS_COOKIE } from '#lib/prefs.js';
 // MONICA_URL or MONICA_TOKEN stops the container with a clear error instead of
 // failing on the first page view.
 export const init: ServerInit = async () => {
-	await import('#lib/server/monica/index.js');
+	const { getDb, ntfy, settings } = await import('#lib/server/monica/index.js');
+	// Timed reminders: send due ones every 30 s (nothing is sent without ORBIT_NTFY_URL)
+	const { building } = await import('$app/env');
+	if (!building) {
+		const [{ startReminderLoop }, { sendNtfy }] = await Promise.all([import('#lib/server/reminder-loop.js'), import('#lib/server/ntfy.js')]);
+		startReminderLoop({ db: getDb, send: ntfy ? (n) => sendNtfy(ntfy, n) : null, publicUrl: settings.publicUrl });
+	}
 };
 
 // Display preferences (theme, font) from the cookie, applied to <html> before

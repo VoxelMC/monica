@@ -2,6 +2,8 @@
 	import Avatar from '#lib/components/Avatar.svelte';
 	import ConfirmRemove from '#lib/components/ConfirmRemove.svelte';
 	import PhotoPicker from '#lib/components/PhotoPicker.svelte';
+	import RemindMe from '#lib/components/RemindMe.svelte';
+	import ReminderList from '#lib/components/ReminderList.svelte';
 	import Tag from '#lib/components/Tag.svelte';
 	import type { TimelineItem } from '#lib/contact.js';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -45,7 +47,8 @@
 		}
 	}
 	let removing = $state<TimelineItem | null>(null);
-	let notice = $state<{ ok: boolean; message: string } | null>(null);
+	// `audit: false` for orbit-only changes (reminders), which are not Monica writes
+	let notice = $state<{ ok: boolean; message: string; audit?: boolean } | null>(null);
 	// A new contact page (e.g. via a relationship link) starts fresh
 	$effect(() => {
 		void c.id;
@@ -144,9 +147,12 @@
 			{/each}
 		</ul>
 	{/if}
-	<a href="/log?people={c.id}" class="mb-3 flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-input)] border border-accent-solid font-medium text-accent">
-		<span aria-hidden="true">+</span> Log a catch-up
-	</a>
+	<div class="mb-3 flex gap-2">
+		<a href="/log?people={c.id}" class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[var(--radius-input)] border border-accent-solid font-medium text-accent">
+			<span aria-hidden="true">+</span> Log a catch-up
+		</a>
+		<RemindMe contactId={c.id} name={c.name} ntfyConfigured={data.ntfyConfigured} ondone={(r) => (notice = { ...r, audit: false })} />
+	</div>
 	{#if c.description}<p class="mb-3 whitespace-pre-line text-fg">{c.description}</p>{/if}
 
 	<div class="grid gap-3 lg:grid-cols-[1fr_20rem]">
@@ -166,14 +172,18 @@
 
 			{#if notice}
 				<p class="rounded-[var(--radius-card)] border p-3 text-sm {notice.ok ? 'border-accent-solid bg-accent-soft text-on-accent-soft' : 'border-attention text-attention'}" role="status" data-testid="remove-notice">
-					{notice.message} <a class="underline" href="/audit">Audit log</a>
+					{notice.message}{#if notice.audit !== false} <a class="underline" href="/audit">Audit log</a>{/if}
 				</p>
 			{/if}
 
 			<!-- Reminders: open and first, so they are seen without a tap -->
-			{#if c.reminders.length}
+			{#if c.reminders.length || data.timedReminders.length}
 				<section class="rounded-[var(--radius-card)] border border-line bg-surface p-4" aria-labelledby="reminders-h" data-testid="reminders">
 					<h2 id="reminders-h" class="mb-2 text-base font-semibold">Reminders</h2>
+					{#if data.timedReminders.length}
+						<ReminderList items={data.timedReminders} showName={false} onresult={(r) => (notice = { ...r, audit: false })} />
+						{#if c.reminders.length}<h3 class="mt-3 mb-1 text-xs font-semibold tracking-wider text-muted uppercase">In Monica</h3>{/if}
+					{/if}
 					<ul class="flex flex-col divide-y divide-line">
 						{#each c.reminders as r (r.id)}
 							<li class="flex items-baseline justify-between gap-3 py-2 first:pt-0 last:pb-0">

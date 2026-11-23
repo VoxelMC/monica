@@ -116,6 +116,66 @@ docker compose exec app printenv RATE_LIMIT_PER_MINUTE_API  # 1000
 
 Keep orbit's number a little below Monica's.
 
+## Reminders (phone notifications)
+
+Timed reminders ("Remind me…" on a person's page) are kept in orbit's own database and sent to your
+phone through [ntfy](https://ntfy.sh) at the chosen minute. Without the settings below they are still
+kept and listed, just not sent; once ntfy is set up, anything overdue goes out marked "late".
+
+Self-hosting ntfy keeps names and notes on your server. It runs next to orbit, behind Caddy, reachable
+only on the tailnet. Phone: install **ntfy** (F-Droid or Play Store), with Tailscale on.
+
+1. Add a service to `~/repos/monica/compose.yaml`:
+
+```yaml
+  ntfy:
+    image: binwiederhier/ntfy:v2.11.0
+    command: serve
+    network_mode: service:tailscale
+    depends_on: [tailscale]
+    environment:
+      NTFY_BASE_URL: https://ntfy.trevfox.dev
+      NTFY_LISTEN_HTTP: 127.0.0.1:2586
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
+    volumes:
+      - ./ntfy-cache:/var/cache/ntfy
+    restart: unless-stopped
+```
+
+2. Caddyfile, next to the orbit site:
+
+```text
+ntfy.trevfox.dev {
+	import porkbun
+	reverse_proxy 127.0.0.1:2586
+}
+```
+
+3. Porkbun DNS: `A` record `ntfy` → `100.69.133.121` (same as orbit).
+
+4. orbit settings. Make up a topic name nobody would guess (it works like a password):
+
+```bash
+cd ~/repos/monica
+TOPIC=orbit-$(head -c 18 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 16)
+echo "ORBIT_NTFY_URL=http://127.0.0.1:2586/$TOPIC" >> orbit.env
+echo "ORBIT_PUBLIC_URL=https://orbit.trevfox.dev" >> orbit.env
+echo "Subscribe to this topic on the phone: $TOPIC"
+docker compose up -d ntfy orbit && docker compose restart caddy
+```
+
+5. On the phone, in ntfy: Settings → Default server → `https://ntfy.trevfox.dev`. Then **+** →
+   the topic printed above. Allow notifications. Turn off battery optimisation for ntfy so
+   reminders arrive on time: self-hosted servers deliver over a kept-open connection.
+
+6. Check: orbit's Health page shows "Reminders: sent via http://127.0.0.1:2586". Set a reminder for
+   two minutes from now. Tapping the notification opens the person in orbit.
+
+Using the public ntfy.sh instead skips steps 1–3: set `ORBIT_NTFY_URL=https://ntfy.sh/$TOPIC` and
+subscribe to it in the app with the default server. That's simpler, but every reminder's name and note
+passes through ntfy.sh's servers.
+
 ## Rollback
 
 ```bash
@@ -128,4 +188,5 @@ Monica and DAVx⁵ keep working; nothing in Monica depends on orbit.
 
 - Keep `ORBIT_READ_ONLY=true` until slice 4 is approved. With it on, orbit refuses every write before
   anything reaches Monica.
-- Check that the next night's backup includes `orbit-data`.
+- Check that the next night's backup includes `orbit-data` (it holds the audit log, journal mentions
+  and reminders).

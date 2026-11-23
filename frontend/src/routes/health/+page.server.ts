@@ -36,7 +36,9 @@ export const load: PageServerLoad = async () => {
 		settings: {
 			monicaUrl: settings.monicaUrl,
 			readOnly: settings.readOnly,
-			dryRun: settings.dryRun
+			dryRun: settings.dryRun,
+			ntfyServer: settings.ntfyServer ?? null,
+			publicUrl: settings.publicUrl ?? null
 		}
 	};
 };

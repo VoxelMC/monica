@@ -359,3 +359,63 @@ test('remove: confirmation is required, shows what goes, and read-only refuses i
 	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
 	await expect(page.getByTestId('notes')).toBeVisible(); // still there
 });
+
+test('photo: crop preview before anything is sent; read-only refuses the save', async ({ page }) => {
+	await page.goto('/contacts/3');
+	await page.waitForLoadState('networkidle');
+	// A portrait JPEG made in the browser
+	const jpeg = await page.evaluate(() => {
+		const c = document.createElement('canvas');
+		c.width = 600;
+		c.height = 900;
+		const g = c.getContext('2d')!;
+		g.fillStyle = '#2f5d50';
+		g.fillRect(0, 0, 600, 900);
+		return c.toDataURL('image/jpeg', 0.9).split(',')[1];
+	});
+	await page.getByTestId('photo-input').setInputFiles({ name: 'p.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(jpeg, 'base64') });
+	const dialog = page.getByRole('dialog');
+	await expect(dialog.getByTestId('photo-preview')).toBeVisible();
+	await expect(dialog.getByText('Move the square up or down')).toBeVisible();
+	const src = await dialog.getByTestId('photo-preview').getAttribute('src');
+	expect(src).toMatch(/^data:image\/jpeg;base64,/);
+	await dialog.getByTestId('photo-save').click();
+	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
+});
+
+test('photo: the server refuses anything that is not a real JPEG/PNG/WebP', async ({ request }) => {
+	const headers = { origin: 'http://127.0.0.1:5173' };
+	const svg = await request.post('/contacts/3?/photo', { form: { contactId: '3', updatedAt: 'x', photo: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' }, headers });
+	expect(svg.status()).toBe(400);
+	const fake = await request.post('/contacts/3?/photo', { form: { contactId: '3', updatedAt: 'x', photo: 'data:image/png;base64,' + 'A'.repeat(400) }, headers });
+	expect(fake.status()).toBe(400);
+});
+
+test('reminders: set one from a contact page, see it, remove it (orbit only, never Monica)', async ({ page }, info) => {
+	const note = `e2e test reminder ${info.project.name} ${Date.now()}`; // projects run in parallel
+	await page.goto('/contacts/2');
+	await page.waitForLoadState('networkidle');
+	await page.getByTestId('remind-me').click();
+	const dialog = page.getByRole('dialog');
+	const save = dialog.getByTestId('remind-save');
+	await expect(save).toBeDisabled(); // no time yet
+	await dialog.getByRole('button', { name: 'In 3 hours' }).click();
+	await dialog.getByTestId('remind-note').fill(note);
+	await save.click();
+	await expect(page.getByTestId('remove-notice')).toContainText('Reminder set for');
+	await expect(page).toHaveURL(/\/contacts\/2$/); // stays on the page
+	const list = page.getByTestId('reminders').getByTestId('reminder-list');
+	const item = list.locator('li', { hasText: note });
+	await expect(item).toContainText(/in (3 h|2 h 5\d min)/);
+	await item.getByRole('button', { name: 'Remove reminder' }).click();
+	await expect(page.getByText(note)).toHaveCount(0);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+});
+
+test('reminders: past times and unknown people are refused', async ({ request }) => {
+	const headers = { origin: 'http://127.0.0.1:5173' };
+	const past = await request.post('/reminders?/create', { form: { contactId: '2', dueAt: '2020-01-01T00:00:00.000Z', timeZone: 'UTC', note: '' }, headers });
+	expect(past.status()).toBe(400);
+	const nobody = await request.post('/reminders?/create', { form: { contactId: '999999', dueAt: new Date(Date.now() + 3600_000).toISOString(), timeZone: 'UTC', note: '' }, headers });
+	expect(nobody.status()).toBe(400);
+});

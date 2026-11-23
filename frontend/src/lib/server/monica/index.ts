@@ -1,6 +1,6 @@
 // App-wide Monica client and guards, built from the environment.
 import { building, dev } from '$app/env';
-import { MONICA_PUBLIC_URL, MONICA_TOKEN as TOKEN_ENV, MONICA_URL as URL_ENV, ORBIT_DB_PATH, ORBIT_DRY_RUN, ORBIT_MONICA_RPM, ORBIT_READ_ONLY } from '$app/env/private';
+import { MONICA_PUBLIC_URL, MONICA_TOKEN as TOKEN_ENV, MONICA_URL as URL_ENV, ORBIT_DB_PATH, ORBIT_DRY_RUN, ORBIT_MONICA_RPM, ORBIT_NTFY_TOKEN, ORBIT_NTFY_URL, ORBIT_PUBLIC_URL, ORBIT_READ_ONLY } from '$app/env/private';
 import { createAuditLog } from '../audit';
 import { assertDevTargetsStaging, requireAtRuntime } from '../config';
 import { openDb, type OrbitDb } from '../db';
@@ -28,8 +28,15 @@ export const settings = {
 	publicMonicaUrl: MONICA_PUBLIC_URL ?? (dev ? MONICA_URL : undefined),
 	readOnly: ORBIT_READ_ONLY,
 	dryRun: ORBIT_DRY_RUN,
-	dbPath: ORBIT_DB_PATH
+	dbPath: ORBIT_DB_PATH,
+	/** Reminder notifications go out only when this is set. */
+	ntfyConfigured: ORBIT_NTFY_URL !== undefined,
+	ntfyServer: ORBIT_NTFY_URL?.server,
+	publicUrl: ORBIT_PUBLIC_URL
 } as const;
+
+/** Reminder sending settings (hooks.server.ts starts the loop). */
+export const ntfy = ORBIT_NTFY_URL ? { ...ORBIT_NTFY_URL, token: ORBIT_NTFY_TOKEN } : undefined;
 
 let db: OrbitDb | undefined;
 export function getDb(): OrbitDb {

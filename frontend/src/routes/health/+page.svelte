@@ -31,6 +31,9 @@
 			<dt>Read-only</dt>
 			<dd class:warn={!data.settings.readOnly}>{data.settings.readOnly ? 'on (writes refused)' : 'OFF (writes allowed)'}</dd>
 			<dt>Dry run</dt><dd>{data.settings.dryRun ? 'on' : 'off'}</dd>
+			<dt>Reminders</dt>
+			<dd class:warn={!data.settings.ntfyServer}>{data.settings.ntfyServer ? `sent via ${data.settings.ntfyServer}` : 'not sent (ORBIT_NTFY_URL unset)'}</dd>
+			<dt>orbit URL</dt><dd>{data.settings.publicUrl ?? 'unset (notifications open nothing when tapped)'}</dd>
 		</dl>
 	</section>
 

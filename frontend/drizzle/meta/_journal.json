@@ -15,6 +15,13 @@
       "when": 1795388325879,
       "tag": "0001_legal_greymalkin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795467179387,
+      "tag": "0002_many_the_professor",
+      "breakpoints": true
     }
   ]
 }

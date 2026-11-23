@@ -7,6 +7,7 @@ import {
 	parseRpm,
 	parseTokenOptional
 } from './lib/server/config';
+import { parseNtfyUrl } from './lib/server/ntfy';
 
 // All variables are private (server-only) and read when the app starts.
 export const variables = defineEnvVars({
@@ -33,6 +34,18 @@ export const variables = defineEnvVars({
 	ORBIT_MONICA_RPM: {
 		schema: parseRpm,
 		description: "Default 50. Monica API requests per minute orbit allows itself; keep below Monica's RATE_LIMIT_PER_MINUTE_API."
+	},
+	ORBIT_NTFY_URL: {
+		schema: parseNtfyUrl,
+		description: 'Optional. ntfy topic URL for reminder notifications, e.g. https://ntfy.sh/<secret-topic>. Unset: reminders are kept but not sent.'
+	},
+	ORBIT_NTFY_TOKEN: {
+		schema: (v) => (v && v.trim() ? v.trim() : undefined),
+		description: 'Optional. ntfy access token, if the topic is protected. Never logged.'
+	},
+	ORBIT_PUBLIC_URL: {
+		schema: parsePublicUrl,
+		description: 'Optional. orbit as the browser sees it (e.g. https://orbit.trevfox.dev); tapping a reminder opens the contact there.'
 	},
 	ORBIT_DB_PATH: {
 		schema: (v) => (v && v.trim() ? v.trim() : './data/orbit.sqlite'),

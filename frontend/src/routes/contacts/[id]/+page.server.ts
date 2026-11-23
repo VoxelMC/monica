@@ -1,6 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { removeEntry } from '#lib/server/remove-entry.js';
 import { savePhoto } from '#lib/server/photo-save.js';
+import { openReminders } from '#lib/server/reminders.js';
 import { ContactNotFound, loadContactPage } from '#lib/server/monica/contact-page.js';
 import { entriesMentioning } from '#lib/server/journal-save.js';
 import { journalEntry } from '#lib/server/monica/schemas.js';
@@ -21,6 +22,8 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 		return {
 			contact,
 			mentionedIn,
+			timedReminders: openReminders(getDb(), contact.id),
+			ntfyConfigured: settings.ntfyConfigured,
 			monicaLink: settings.publicMonicaUrl ? `${settings.publicMonicaUrl}/people/${encodeURIComponent(contact.hashId)}` : null
 		};
 	} catch (err) {
