@@ -1,5 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { removeEntry } from '#lib/server/remove-entry.js';
+import { savePhoto } from '#lib/server/photo-save.js';
 import { ContactNotFound, loadContactPage } from '#lib/server/monica/contact-page.js';
 import { entriesMentioning } from '#lib/server/journal-save.js';
 import { journalEntry } from '#lib/server/monica/schemas.js';
@@ -33,6 +34,11 @@ export const actions: Actions = {
 	// Remove a hangout, note or journal entry (confirmed in the UI; see remove-entry.ts)
 	remove: async ({ request }) => {
 		const result = await removeEntry(getGuards(), await request.formData());
+		return result.ok ? result : fail(400, result);
+	},
+	// Change the profile photo (upload + set as avatar; see photo-save.ts)
+	photo: async ({ request }) => {
+		const result = await savePhoto(getGuards(), await request.formData());
 		return result.ok ? result : fail(400, result);
 	}
 };

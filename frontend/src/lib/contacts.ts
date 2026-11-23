@@ -9,6 +9,8 @@ export interface ContactCard {
 	initials: string;
 	color: string;
 	hasPhoto: boolean;
+	/** Changes when the photo changes (Monica's file name), so browsers fetch the new one. */
+	photoKey?: string | null;
 	starred: boolean;
 	tags: string[];
 	/** Most recent of last activity together and last call, ISO date or null. */
@@ -177,4 +179,10 @@ export function groupByLetter(list: ContactCard[]): { letter: string; contacts: 
 		else groups.push({ letter: l, contacts: [c] });
 	}
 	return groups;
+}
+
+/** The avatar photo's file name (changes whenever the photo does), or null for initials. */
+export function photoKey(avatar: { source?: string | null; url?: string | null }): string | null {
+	if (avatar.source !== 'photo' || !avatar.url) return null;
+	return avatar.url.split('?')[0].split('/').pop() || null;
 }

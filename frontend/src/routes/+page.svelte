@@ -33,7 +33,7 @@
 {#snippet person(c: (typeof data.contacts)[number], line: string, lineClass = 'text-muted', title?: string)}
 	<li>
 		<a href="/contacts/{c.id}" class="-mx-2 flex min-h-14 items-center gap-3 rounded-[var(--radius-input)] px-2 hover:bg-surface-2">
-			<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} size="size-10" />
+			<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="size-10" />
 			<span class="min-w-0 flex-1">
 				<span class="block truncate font-medium">{c.name}</span>
 				<span class="block truncate text-sm {lineClass}" {title}>{line}</span>

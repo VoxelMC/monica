@@ -174,10 +174,12 @@ describe('allowlist', () => {
 			'POST /api/contacts/{id}/unsetTag',
 			'POST /api/journal',
 			'POST /api/notes',
-			'PUT /api/contacts/{id}'
+			'POST /api/photos',
+			'PUT /api/contacts/{id}',
+			'PUT /api/contacts/{id}/avatar'
 		]);
-		// The only contact update is the birthday rule, and contacts can never be deleted
-		expect(WRITE_ALLOWLIST.filter((r) => r.method === 'PUT').map((r) => r.key)).toEqual(['contact.birthday']);
+		// The only contact updates are the birthday and avatar rules, and contacts can never be deleted
+		expect(WRITE_ALLOWLIST.filter((r) => r.method === 'PUT').map((r) => r.key)).toEqual(['contact.birthday', 'contact.avatar']);
 		expect(WRITE_ALLOWLIST.some((r) => r.method === 'DELETE' && r.path.includes('contacts'))).toBe(false);
 		expect(WRITE_ALLOWLIST.some((r) => r.path.endsWith('/unsetTags'))).toBe(false);
 	});
@@ -430,5 +432,61 @@ describe('journal.create (POST /api/journal)', () => {
 		expect(calls[0]).toMatchObject({ method: 'POST', body: { title: 'Whistler', post: 'Great hike' } });
 		await expect(guards.create('journal.create', { title: 'x', post: 'y', date: '2026-01-01' })).rejects.toMatchObject({ reason: 'field-not-editable' });
 		await expect(guards.create('journal.create', { title: 'x', post: 'y' }, 3)).rejects.toBeInstanceOf(WriteRefusedError); // no id on this path
+	});
+});
+
+describe('contact photos (POST /api/photos, then PUT /api/contacts/{id}/avatar)', () => {
+	// A real 1x1 JPEG header followed by padding: enough for the magic-byte and size checks
+	const JPEG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ' + 'A'.repeat(400);
+	const CONTACT = { data: { id: 7, object: 'contact', first_name: 'Ada', information: { avatar: { source: 'photo', url: 'x/old.jpg' } }, updated_at: '2026-11-20T10:00:00Z' } };
+
+	it('uploads one image for one contact', async () => {
+		const { guards, calls, rows } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: { data: { id: 99, object: 'photo' } } }] });
+		await guards.create('photo.upload', { contact_id: 7, data: JPEG });
+		expect(calls[0]).toMatchObject({ method: 'POST', body: { contact_id: 7, data: JPEG } });
+		expect(new URL(calls[0].url).pathname).toBe('/api/photos');
+		expect(rows()[0]).toMatchObject({ endpoint: '/api/photos', result: 'ok' });
+	});
+
+	it('refuses anything that is not a real JPEG/PNG/WebP within the size limit, or has no contact', async () => {
+		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [] });
+		const bad = [
+			{ contact_id: 7, data: 'data:image/svg+xml;base64,' + 'A'.repeat(400) }, // SVG can carry scripts
+			{ contact_id: 7, data: 'data:image/png;base64,/9j/4AAQSkZJRgABAQ' + 'A'.repeat(400) }, // says PNG, is JPEG
+			{ contact_id: 7, data: 'data:image/jpeg;base64,' + 'A'.repeat(2_100_000) }, // too large
+			{ contact_id: 7, data: 'https://example.com/a.jpg' },
+			{ contact_id: 7, data: 'data:image/jpeg;base64,/9j/' }, // empty
+			{ data: JPEG },
+			{ contact_id: 0, data: JPEG }
+		];
+		for (const body of bad) await expect(guards.create('photo.upload', body)).rejects.toMatchObject({ reason: 'invalid-body' });
+		await expect(guards.create('photo.upload', { contact_id: 7, data: JPEG, extension: 'php' })).rejects.toMatchObject({ reason: 'field-not-editable' });
+		await expect(guards.create('photo.upload', { contact_id: 7, data: JPEG }, 7)).rejects.toMatchObject({ reason: 'bad-path' });
+		expect(calls).toHaveLength(0);
+	});
+
+	it('sets the avatar: reads the contact, checks for conflicts, sends only source and photo_id', async () => {
+		const { guards, calls, rows } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: CONTACT }, { body: CONTACT }] });
+		await guards.update('contact.avatar', 7, { source: 'photo', photo_id: 99 }, CONTACT.data.updated_at);
+		expect(calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual(['GET /api/contacts/7', 'PUT /api/contacts/7/avatar']);
+		expect(calls[1].body).toEqual({ source: 'photo', photo_id: 99 });
+		expect(rows()[0]).toMatchObject({ endpoint: '/api/contacts/7/avatar', monicaId: 7, result: 'ok' });
+		expect(JSON.parse(rows()[0].beforeJson!)).toMatchObject({ information: { avatar: { url: 'x/old.jpg' } } }); // the old avatar is on record
+	});
+
+	it('avatar: conflict, other sources, other fields and read-only are refused with no PUT', async () => {
+		const conflict = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: CONTACT }] });
+		await expect(conflict.guards.update('contact.avatar', 7, { source: 'photo', photo_id: 99 }, 'older')).rejects.toBeInstanceOf(ConflictError);
+		expect(conflict.calls.map((c) => c.method)).toEqual(['GET']);
+		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [] });
+		for (const changes of [{ source: 'default' }, { source: 'gravatar' }, { source: 'photo' }, { source: 'photo', photo_id: '99' }]) {
+			await expect(guards.update('contact.avatar', 7, changes, 'x')).rejects.toMatchObject({ reason: 'invalid-body' });
+		}
+		await expect(guards.update('contact.avatar', 7, { source: 'photo', photo_id: 9, first_name: 'X' }, 'x')).rejects.toMatchObject({ reason: 'field-not-editable' });
+		const ro = setup({ readOnly: true, allowlist: [...WRITE_ALLOWLIST], replies: [] });
+		await expect(ro.guards.update('contact.avatar', 7, { source: 'photo', photo_id: 9 }, 'x')).rejects.toMatchObject({ reason: 'read-only' });
+		await expect(ro.guards.create('photo.upload', { contact_id: 7, data: JPEG })).rejects.toMatchObject({ reason: 'read-only' });
+		expect(calls).toHaveLength(0);
+		expect(ro.calls).toHaveLength(0);
 	});
 });

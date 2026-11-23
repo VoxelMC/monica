@@ -5,7 +5,7 @@
 //  - Photo files under /store need a web session; GET /api/contacts/{id}/photos
 //    returns them as base64 `dataUrl`
 import { parseBirthday } from '../../contact';
-import { displayName, type ContactCard } from '../../contacts';
+import { displayName, photoKey, type ContactCard } from '../../contacts';
 import type { MonicaClient } from './client';
 import { contactListItem, photo, tag, taskWithContact, type ContactListItem } from './schemas';
 
@@ -23,6 +23,7 @@ export function toCard(c: ContactListItem): ContactCard {
 		initials: c.initials,
 		color: c.information.avatar.default_avatar_color ?? '#64748b',
 		hasPhoto: c.information.avatar.source === 'photo',
+		photoKey: photoKey(c.information.avatar),
 		starred: c.is_starred,
 		tags: c.tags.map((t) => t.name),
 		lastContacted: latest(c.last_activity_together, c.last_called),

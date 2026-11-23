@@ -61,7 +61,7 @@
 {#snippet body()}
 	{#if view === 'cards'}
 		{@render check()}
-		<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} size="size-11" />
+		<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="size-11" />
 		<span class="min-w-0 flex-1">
 			{@render name()}
 			<span class="mt-0.5 block truncate text-sm text-muted">
@@ -72,7 +72,7 @@
 	{:else}
 		<span class="flex items-center gap-3">
 			{@render check()}
-			<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} size="size-8" text="text-xs" />
+			<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="size-8" text="text-xs" />
 		</span>
 		<span class="min-w-0">
 			{@render name()}

@@ -5,10 +5,12 @@
 		initials: string;
 		color: string;
 		hasPhoto: boolean;
+		/** Changes with the photo, so a new photo is not hidden by the browser cache. */
+		photoKey?: string | null;
 		size?: string;
 		text?: string;
 	}
-	let { id, name, initials, color, hasPhoto, size = 'size-12', text = 'text-sm' }: Props = $props();
+	let { id, name, initials, color, hasPhoto, photoKey = null, size = 'size-12', text = 'text-sm' }: Props = $props();
 	let failed = $state(false);
 	// Same corner radius as cards and buttons; big photos get a slightly larger one.
 	const radius = $derived(/size-(1[6-9]|[2-9]\d)\b/.test(size) ? 'rounded-[var(--radius-photo-lg)]' : 'rounded-[var(--radius-photo)]');
@@ -28,7 +30,7 @@
 
 {#if hasPhoto && !failed}
 	<img
-		src="/avatars/{id}"
+		src={photoKey ? `/avatars/${id}?v=${encodeURIComponent(photoKey)}` : `/avatars/${id}`}
 		alt=""
 		loading="lazy"
 		decoding="async"

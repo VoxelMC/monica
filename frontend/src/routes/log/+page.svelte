@@ -216,7 +216,7 @@
 					{#each suggestions as c (c.id)}
 						<li>
 							<button type="button" class="flex min-h-12 w-full items-center gap-3 rounded-[var(--radius-input)] px-1 text-left hover:bg-surface-2" onclick={() => (people.add(c.id), (search = ''))}>
-								<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} size="size-8" text="text-xs" />
+								<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="size-8" text="text-xs" />
 								<span class="flex-1">{c.name}</span>
 								<span class="text-accent" aria-hidden="true">+</span>
 							</button>
@@ -241,7 +241,7 @@
 							{#if openNotes.has(c.id) || personNotes[c.id]}
 								<div>
 									<label for="note-{c.id}" class="mb-1 flex items-center gap-2 text-sm">
-										<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} size="size-6" text="text-[10px]" />
+										<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="size-6" text="text-[10px]" />
 										{c.name}
 									</label>
 									<textarea
@@ -321,7 +321,7 @@
 						{#each mentionSuggestions as c, i (c.id)}
 							<li role="option" aria-selected={i === 0}>
 								<button type="button" class="flex min-h-11 w-full items-center gap-3 px-3 text-left hover:bg-surface-2 {i === 0 ? 'bg-surface-2' : ''}" onmousedown={(e) => e.preventDefault()} onclick={() => pickMention(c)}>
-									<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} size="size-7" text="text-xs" />
+									<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="size-7" text="text-xs" />
 									{c.name}
 								</button>
 							</li>

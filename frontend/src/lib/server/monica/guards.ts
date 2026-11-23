@@ -15,6 +15,7 @@
 import type { AuditLog } from '../audit';
 import { assertApiPath, type Transport } from './client';
 import { basePayloadFromContact, contactHasBirthday } from '../../birthday-write';
+import { checkPhotoDataUrl } from '../../photo';
 import { DELETE_CAPABILITY } from './delete-capability';
 import { ConflictError, WriteRefusedError } from './errors';
 
@@ -87,6 +88,25 @@ export const WRITE_ALLOWLIST: readonly WriteRule[] = [
 	{ key: 'contact.tags.add', method: 'POST', path: '/api/contacts/{id}/setTags', editableFields: ['tags'], validate: oneTagName },
 	{ key: 'contact.tags.remove', method: 'POST', path: '/api/contacts/{id}/unsetTag', editableFields: ['tags'], validate: oneTagId },
 	// Journal entries (2026-11-23): Monica accepts only title and post (the date is the day it is saved)
+	// Contact photos (2026-11-23): upload one image for one contact, then make it the avatar.
+	// Old photos stay in Monica; nothing is removed.
+	{
+		key: 'photo.upload',
+		method: 'POST',
+		path: '/api/photos',
+		editableFields: ['contact_id', 'data'],
+		validate: (b) => (Number.isInteger(b.contact_id) && (b.contact_id as number) > 0 ? checkPhotoDataUrl(b.data) : 'a contact id is required')
+	},
+	{
+		key: 'contact.avatar',
+		method: 'PUT',
+		path: '/api/contacts/{id}/avatar',
+		readPath: '/api/contacts/{id}',
+		editableFields: ['source', 'photo_id'],
+		// The avatar endpoint takes only these two fields; it changes nothing else on the contact.
+		toPayload: () => ({}),
+		validate: (b) => (b.source === 'photo' && Number.isInteger(b.photo_id) && (b.photo_id as number) > 0 ? null : 'source "photo" and a photo id are required')
+	},
 	{
 		key: 'journal.create',
 		method: 'POST',

@@ -34,6 +34,7 @@
 							<div>
 								<h2 class="mb-1 text-xs font-semibold tracking-wider text-muted uppercase">{r.result === 'pending' || r.dryRun ? 'Sent / would send' : 'After (Monica’s reply)'}</h2>
 								<pre class="max-h-80 overflow-auto rounded-[var(--radius-input)] bg-surface-2 p-2 text-xs whitespace-pre-wrap">{r.after ?? '—'}</pre>
+								{#if r.image}<img src={r.image} alt="What was uploaded" class="mt-2 size-24 rounded-[var(--radius-photo)] object-cover" />{/if}
 							</div>
 						</div>
 					</details>

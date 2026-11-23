@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Avatar from '#lib/components/Avatar.svelte';
 	import ConfirmRemove from '#lib/components/ConfirmRemove.svelte';
+	import PhotoPicker from '#lib/components/PhotoPicker.svelte';
 	import Tag from '#lib/components/Tag.svelte';
 	import type { TimelineItem } from '#lib/contact.js';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -117,14 +118,17 @@
 
 	<!-- Header -->
 	<header class="flex items-center gap-4 py-3">
-		<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} size="size-20" text="text-2xl" />
+		<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="size-20" text="text-2xl" />
 		<div class="min-w-0">
 			<h1 class="text-2xl font-semibold break-words">{c.name}{#if c.isDead}<span class="ml-2 text-base font-normal text-muted">(deceased)</span>{/if}</h1>
 			{#if c.nickname}<p class="text-muted">“{c.nickname}”</p>{/if}
 			{#if c.job || c.company}<p class="text-sm text-muted">{[c.job, c.company].filter(Boolean).join(' at ')}</p>{/if}
-			{#if !c.birthday && !c.isDead}
-				<a href="/birthdays?contact={c.id}" class="mt-1 inline-block text-sm text-accent">+ Add birthday</a>
-			{/if}
+			<div class="mt-1 flex flex-wrap gap-x-4">
+				{#if !c.birthday && !c.isDead}
+					<a href="/birthdays?contact={c.id}" class="text-sm text-accent">+ Add birthday</a>
+				{/if}
+				<PhotoPicker contactId={c.id} updatedAt={c.updatedAt} name={c.name} ondone={(r) => (notice = r)} />
+			</div>
 			{#if c.birthday}
 				<p class="mt-1 text-sm" data-testid="birthday">
 					<span class={c.birthday.daysUntil <= 30 ? 'font-medium text-attention' : 'text-muted'}>{birthdayLine(c.birthday)}</span>

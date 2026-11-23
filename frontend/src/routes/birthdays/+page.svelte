@@ -89,7 +89,7 @@
 				{#each m.items as b (b.contact.id)}
 					<li>
 						<a href="/contacts/{b.contact.id}" class="-mx-2 flex min-h-12 items-center gap-3 rounded-[var(--radius-input)] px-2 hover:bg-surface-2">
-							<Avatar id={b.contact.id} name={b.contact.name} initials={b.contact.initials} color={b.contact.color} hasPhoto={b.contact.hasPhoto} size="size-8" text="text-xs" />
+							<Avatar id={b.contact.id} name={b.contact.name} initials={b.contact.initials} color={b.contact.color} hasPhoto={b.contact.hasPhoto} photoKey={b.contact.photoKey} size="size-8" text="text-xs" />
 							<!-- Phone: date under the name, so names are never cut short. Wider: date on the right. -->
 							<span class="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-center sm:justify-between sm:gap-3">
 								<span class="truncate">{b.contact.name}</span>
@@ -122,7 +122,7 @@
 				<li id="missing-{c.id}" class="py-2.5 {focusId === c.id ? 'bg-accent-soft' : ''}">
 					<div class="flex flex-wrap items-center gap-x-3 gap-y-2">
 						<a href="/contacts/{c.id}" class="flex min-w-[10rem] flex-1 items-center gap-3">
-							<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} size="size-8" text="text-xs" />
+							<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="size-8" text="text-xs" />
 							<span class="truncate">{c.name}</span>
 						</a>
 						<div class="flex items-center gap-1.5">
