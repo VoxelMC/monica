@@ -1,8 +1,9 @@
 <script lang="ts">
-	// Tags on one person's page: tap a tag to filter People, "+ Tag" to add one
-	// (suggestions from Monica's tags, or a new name), × to take one off. Uses the
+	// Tags on one person's page: tap a tag to filter People, "+ Tag" to add some
+	// (tick any of Monica's tags and/or type a new name), × to take one off. Uses the
 	// same guarded writes as bulk tags (setTags / unsetTag, one tag per request).
 	import { enhance } from '$app/forms';
+	import { SvelteSet } from 'svelte/reactivity';
 	import Tag from './Tag.svelte';
 
 	interface Props {
@@ -19,15 +20,28 @@
 	let input = $state<HTMLInputElement>();
 	const lower = $derived(new Set(tags.map((t) => t.toLocaleLowerCase())));
 	const suggestions = $derived(allTags.filter((t) => !lower.has(t.toLocaleLowerCase())));
+	const selected = new SvelteSet<string>();
+	const typed = $derived(name.trim());
 	const matches = $derived(
-		name.trim() ? suggestions.filter((t) => t.toLocaleLowerCase().includes(name.trim().toLocaleLowerCase())).slice(0, 8) : suggestions.slice(0, 8)
+		(typed ? suggestions.filter((t) => t.toLocaleLowerCase().includes(typed.toLocaleLowerCase())) : suggestions).slice(0, 40)
 	);
-	const isNew = $derived(!!name.trim() && !allTags.some((t) => t.toLocaleLowerCase() === name.trim().toLocaleLowerCase()));
+	// What the typed text adds: an existing tag (Monica's spelling) or a new one
+	const typedExisting = $derived(typed ? allTags.find((t) => t.toLocaleLowerCase() === typed.toLocaleLowerCase()) : undefined);
+	const isNew = $derived(!!typed && !typedExisting);
+	const toAdd = $derived([...new Set([...selected, ...(typed ? [typedExisting ?? typed] : [])])].filter((t) => !lower.has(t.toLocaleLowerCase())));
+
+	function toggle(t: string) {
+		if (selected.has(t)) selected.delete(t);
+		else selected.add(t);
+		name = ''; // the text was only a filter
+		input?.focus();
+	}
 
 	function openAdd() {
 		adding = true;
 		removing = null;
 		name = '';
+		selected.clear();
 		queueMicrotask(() => input?.focus());
 	}
 
@@ -41,6 +55,7 @@
 				adding = false;
 				removing = null;
 				name = '';
+				selected.clear();
 			}
 			await update({ reset: false });
 		};
@@ -83,33 +98,51 @@
 	{#if adding}
 		<form method="POST" action="?/tag" use:enhance={submit} class="mt-2" data-testid="add-tag-form">
 			<input type="hidden" name="mode" value="add" />
+			{#each toAdd as t (t)}<input type="hidden" name="tag" value={t} />{/each}
 			<div class="flex gap-2">
 				<input
 					bind:this={input}
 					bind:value={name}
-					name="tag"
 					maxlength="255"
 					autocomplete="off"
-					placeholder="Tag name"
-					aria-label="Tag name"
+					placeholder={suggestions.length ? 'Filter or new tag' : 'New tag'}
+					aria-label="Filter tags or type a new one"
 					class="min-h-11 min-w-0 flex-1 rounded-[var(--radius-input)] border border-line bg-surface px-3"
-					onkeydown={(e) => e.key === 'Escape' && (adding = false)}
+					onkeydown={(e) => {
+						if (e.key === 'Escape') adding = false;
+						// Enter on a filter that leaves one tag ticks it instead of submitting
+						if (e.key === 'Enter' && typed && !typedExisting && matches.length === 1) {
+							e.preventDefault();
+							toggle(matches[0]);
+						}
+					}}
 				/>
-				<button disabled={busy || !name.trim()} class="min-h-11 rounded-[var(--radius-input)] bg-accent-solid px-4 font-semibold text-on-accent disabled:opacity-40" data-testid="add-tag-save">
-					{busy ? 'Adding…' : 'Add'}
+				<button disabled={busy || !toAdd.length} class="min-h-11 rounded-[var(--radius-input)] bg-accent-solid px-4 font-semibold whitespace-nowrap text-on-accent disabled:opacity-40" data-testid="add-tag-save">
+					{busy ? 'Adding…' : toAdd.length > 1 ? `Add ${toAdd.length}` : 'Add'}
 				</button>
 				<button type="button" class="min-h-11 rounded-[var(--radius-input)] px-3 text-muted hover:bg-surface-2" onclick={() => (adding = false)}>Cancel</button>
 			</div>
 			{#if matches.length}
-				<div class="mt-2 flex flex-wrap gap-1" aria-label="Existing tags">
+				<div class="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Existing tags">
 					{#each matches as t (t)}
-						<button type="button" class="rounded-[var(--radius-chip)] {name === t ? 'ring-2 ring-accent-solid' : ''}" onclick={() => (name = t)}>
+						{@const on = selected.has(t)}
+						<button
+							type="button"
+							aria-pressed={on}
+							class="relative rounded-[var(--radius-chip)] {on ? 'ring-2 ring-accent-solid' : 'opacity-80 hover:opacity-100'}"
+							onclick={() => toggle(t)}
+						>
 							<Tag name={t} size="md" />
+							{#if on}<span class="absolute -top-1.5 -right-1.5 flex size-[18px] items-center justify-center rounded-full bg-accent-solid text-[11px] text-on-accent" aria-hidden="true">✓</span>{/if}
 						</button>
 					{/each}
 				</div>
 			{/if}
-			{#if isNew}<p class="mt-1 text-xs text-muted">“{name.trim()}” is a new tag; Monica creates it.</p>{/if}
+			{#if toAdd.length}
+				<p class="mt-2 text-sm text-muted" data-testid="add-tag-preview">
+					Adds {#each toAdd as t, i (t)}{i ? ', ' : ''}<span class="text-fg">{t}</span>{#if isNew && t === typed}{' '}(new){/if}{/each}
+				</p>
+			{/if}
 		</form>
 	{/if}
 </div>

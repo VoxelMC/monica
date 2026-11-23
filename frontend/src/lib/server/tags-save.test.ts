@@ -3,7 +3,7 @@ import type { ContactCard } from '../contacts';
 import { createTransport } from './monica/client';
 import { createGuards, WRITE_ALLOWLIST } from './monica/guards';
 import { fakeClock, fakeFetch, memoryAudit } from './monica/test-helpers';
-import { saveTags } from './tags-save';
+import { addTagsToContact, saveTags } from './tags-save';
 
 const card = (id: number, tags: string[]): ContactCard => ({ id, name: 'P' + id, firstName: null, lastName: null, nickname: null, initials: 'P', color: '#000', hasPhoto: false, starred: false, tags, lastContacted: null, createdAt: 'x', phones: [], emails: [] });
 const contacts = [card(1, []), card(2, ['Paris']), card(3, ['paris', 'Work'])];
@@ -47,5 +47,40 @@ describe('saveTags', () => {
 		const r = await saveTags(guards, { mode: 'add', contactIds: [1], tag: 'Work' }, contacts, tags);
 		expect(r.message).toMatch(/read-only/);
 		expect(calls).toHaveLength(0);
+	});
+});
+
+describe('addTagsToContact (several tags, one person)', () => {
+	it('one request per tag, skipping duplicates and tags they already have', async () => {
+		const { guards, calls } = setup();
+		const r = await addTagsToContact(guards, 3, ['Climbing', 'work', 'paris', 'climbing ', 'Paris', ' '], contacts, tags);
+		expect(r).toMatchObject({ ok: true, added: ['Climbing'], skipped: 2 });
+		expect(r.message).toBe('Added “Climbing” (2 already there).');
+		expect(calls.map((c) => [new URL(c.url).pathname, c.body])).toEqual([['/api/contacts/3/setTags', { tags: ['Climbing'] }]]);
+	});
+	it('uses Monica’s spelling and reports each added tag', async () => {
+		const { guards, calls } = setup();
+		const r = await addTagsToContact(guards, 1, ['paris', 'work'], contacts, tags);
+		expect(r.added).toEqual(['Paris', 'Work']);
+		expect(calls.map((c) => c.body)).toEqual([{ tags: ['Paris'] }, { tags: ['Work'] }]);
+	});
+	it('stops at the first failure and says what was added before it', async () => {
+		const f = fakeFetch([{ body: { data: {} } }, { status: 500 }]);
+		const transport = createTransport({ baseUrl: 'http://127.0.0.1:8081', token: 't', readOnly: false, fetch: f.fetch, ...fakeClock() });
+		const guards = createGuards({ transport, readOnly: false, dryRun: false, audit: memoryAudit().audit, allowlist: WRITE_ALLOWLIST });
+		const r = await addTagsToContact(guards, 1, ['Paris', 'Work', 'Climbing'], contacts, tags);
+		expect(r).toMatchObject({ ok: false, added: ['Paris'] });
+		expect(r.message).toMatch(/^“Work”: .*Added before this: Paris\.$/);
+		expect(f.calls).toHaveLength(2);
+	});
+	it('refuses junk and too many, sending nothing; read-only refuses', async () => {
+		const { guards, calls } = setup();
+		expect((await addTagsToContact(guards, 1, 'Paris', contacts, tags)).ok).toBe(false);
+		expect((await addTagsToContact(guards, 1, Array.from({ length: 21 }, (_, i) => 'T' + i), contacts, tags)).ok).toBe(false);
+		expect((await addTagsToContact(guards, 1, ['  '], contacts, tags)).message).toMatch(/Pick or type/);
+		expect(calls).toHaveLength(0);
+		const ro = setup(true);
+		expect((await addTagsToContact(ro.guards, 1, ['Paris'], contacts, tags)).message).toMatch(/read-only/);
+		expect(ro.calls).toHaveLength(0);
 	});
 });

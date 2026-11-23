@@ -2,7 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import { removeEntry } from '#lib/server/remove-entry.js';
 import { savePhoto } from '#lib/server/photo-save.js';
 import { openReminders } from '#lib/server/reminders.js';
-import { saveTags } from '#lib/server/tags-save.js';
+import { addTagsToContact, saveTags } from '#lib/server/tags-save.js';
 import { listContacts, listTagNames, listTags } from '#lib/server/monica/contacts.js';
 import { ContactNotFound, loadContactPage } from '#lib/server/monica/contact-page.js';
 import { entriesMentioning } from '#lib/server/journal-save.js';
@@ -45,12 +45,15 @@ export const actions: Actions = {
 		const result = await removeEntry(getGuards(), await request.formData());
 		return result.ok ? result : fail(400, result);
 	},
-	// Add or remove one tag on this person (same guarded writes as bulk tags; see tags-save.ts)
+	// Add tags (one or several) to this person, or remove one (same guarded writes as bulk tags; see tags-save.ts)
 	tag: async ({ params, request }) => {
 		const form = await request.formData();
-		const raw = { mode: form.get('mode'), contactIds: [Number(params.id)], tag: String(form.get('tag') ?? '') };
+		const id = Number(params.id);
 		const [contacts, tags] = await Promise.all([listContacts(monica), listTags(monica)]);
-		const result = await saveTags(getGuards(), raw, contacts, tags);
+		const result =
+			form.get('mode') === 'add'
+				? await addTagsToContact(getGuards(), id, form.getAll('tag').map(String), contacts, tags) // several at once
+				: await saveTags(getGuards(), { mode: form.get('mode'), contactIds: [id], tag: String(form.get('tag') ?? '') }, contacts, tags);
 		return result.ok ? result : fail(400, result);
 	},
 	// Change the profile photo (upload + set as avatar; see photo-save.ts)

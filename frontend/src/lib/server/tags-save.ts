@@ -71,3 +71,44 @@ export async function saveTags(guards: Guards, raw: unknown, contacts: ContactCa
 		message: `${dryRun ? 'Dry run: would have ' + verb.toLowerCase() : verb} ${n} ${n === 1 ? 'person' : 'people'}${skipped ? ` (${skipped} skipped: ${mode === 'add' ? 'already had it' : "didn't have it"})` : ''}.`
 	};
 }
+
+/**
+ * Several tags on one person (contact page, 2026-11-23): still one guarded
+ * request per tag (the guard allows exactly one tag per request). Duplicates
+ * and tags the person already has are skipped; stops at the first failure.
+ */
+export async function addTagsToContact(
+	guards: Guards,
+	contactId: number,
+	rawNames: unknown,
+	contacts: ContactCard[],
+	tags: { id: number; name: string }[]
+): Promise<TagSaveResult & { added: string[] }> {
+	const names = z.array(z.string().max(255)).max(20).safeParse(rawNames);
+	if (!names.success) return { ok: false, message: 'The form could not be read. Reload the page and try again.', done: [], skipped: 0, dryRun: false, added: [] };
+	const unique: string[] = [];
+	for (const n of names.data.map((x) => x.trim()).filter(Boolean)) {
+		if (!unique.some((u) => u.localeCompare(n, undefined, { sensitivity: 'accent' }) === 0)) unique.push(n);
+	}
+	if (!unique.length) return { ok: false, message: 'Pick or type a tag.', done: [], skipped: 0, dryRun: false, added: [] };
+
+	const added: string[] = [];
+	let skipped = 0;
+	let dryRun = false;
+	for (const name of unique) {
+		const r = await saveTags(guards, { mode: 'add', contactIds: [contactId], tag: name }, contacts, tags);
+		if (!r.ok) {
+			const before = added.length ? ` Added before this: ${added.join(', ')}.` : '';
+			return { ...r, message: `“${name}”: ${r.message.replace(/^[^:]*: /, '')}${before}`, added };
+		}
+		dryRun ||= r.dryRun;
+		const spelled = tags.find((t) => t.name.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0)?.name ?? name;
+		if (r.done.length) added.push(spelled);
+		else skipped++;
+	}
+	const list = added.map((t) => `“${t}”`).join(', ');
+	const message = added.length
+		? `${dryRun ? 'Dry run: would have added' : 'Added'} ${list}${skipped ? ` (${skipped} already there)` : ''}.`
+		: 'They already have those tags.';
+	return { ok: true, message, done: added.length ? [contactId] : [], skipped, dryRun, added };
+}

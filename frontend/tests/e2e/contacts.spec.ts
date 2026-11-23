@@ -432,3 +432,21 @@ test('tags on a contact page: "+ Add tag" even with no tags; read-only refuses',
 	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
 	await expect(tags.locator('a')).toHaveCount(0); // nothing added
 });
+
+test('tags on a contact page: several existing tags at once, plus a typed new one, previewed first', async ({ page }) => {
+	await page.goto('/contacts/13');
+	await page.waitForLoadState('networkidle');
+	await page.getByTestId('add-tag').click();
+	const form = page.getByTestId('add-tag-form');
+	const chips = form.getByRole('group', { name: 'Existing tags' }).locator('button');
+	await chips.nth(0).click();
+	await chips.nth(1).click();
+	await expect(chips.nth(0)).toHaveAttribute('aria-pressed', 'true');
+	await form.getByLabel('Filter tags or type a new one').fill('Brand New Tag');
+	await expect(page.getByTestId('add-tag-preview')).toContainText('Brand New Tag (new)');
+	await expect(form.getByTestId('add-tag-save')).toHaveText('Add 3');
+	await form.getByLabel('Filter tags or type a new one').fill(''); // back to the two ticked tags
+	await expect(form.getByTestId('add-tag-save')).toHaveText('Add 2');
+	await form.getByTestId('add-tag-save').click();
+	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
+});
