@@ -32,7 +32,7 @@ export interface ContactPage {
 	timeline: TimelineItem[];
 	relationships: { type: string; contactId: number; name: string; partial: boolean }[];
 	tasks: { id: number; title: string; description: string | null; completed: boolean }[];
-	gifts: { id: number; name: string; status: string | null; comment: string | null; amount: string | null; href: string | null }[];
+	gifts: { id: number; name: string; status: string | null; comment: string | null; amount: string | null; href: string | null; hasPrice: boolean; updatedAt: string | null }[];
 	/** Soonest first; past one-time reminders last. */
 	reminders: ReminderView[];
 	howYouMet: string | null;
@@ -158,7 +158,9 @@ export async function loadContactPage(client: MonicaClient, id: number, today = 
 			status: g.status ?? null,
 			comment: g.comment ?? null,
 			amount: g.amount_with_currency ?? null,
-			href: safeHttpUrl(g.url)
+			href: safeHttpUrl(g.url),
+			hasPrice: g.amount != null && g.amount !== '',
+			updatedAt: typeof g.updated_at === 'string' ? g.updated_at : null
 		})),
 		reminders: reminders
 			.map((r) => {

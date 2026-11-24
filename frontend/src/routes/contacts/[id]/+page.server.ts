@@ -2,6 +2,8 @@ import { error, fail } from '@sveltejs/kit';
 import { removeEntry } from '#lib/server/remove-entry.js';
 import { savePhoto } from '#lib/server/photo-save.js';
 import { addNote } from '#lib/server/note-save.js';
+import { addGiftIdea, setGiftStatus } from '#lib/server/gift-save.js';
+import { gift } from '#lib/server/monica/schemas.js';
 import { addField, editField } from '#lib/server/contact-fields-save.js';
 import { contactField } from '#lib/server/monica/schemas.js';
 import { z } from 'zod';
@@ -110,6 +112,22 @@ export const actions: Actions = {
 			return fail(400, { ok: false, dryRun: false, message: 'Monica could not be reached. Nothing was changed.' });
 		}
 		const result = await editField(getGuards(), form, fields);
+		return result.ok ? result : fail(400, result);
+	},
+	// Gift ideas (stored in Monica): add one, or mark one given / back to an idea
+	giftAdd: async ({ params, request }) => {
+		const result = await addGiftIdea(getGuards(), Number(params.id), await request.formData());
+		return result.ok ? result : fail(400, result);
+	},
+	giftStatus: async ({ params, request }) => {
+		const form = await request.formData();
+		let gifts: { id: number; name: string }[];
+		try {
+			gifts = (await monica.getAll(`/api/contacts/${Number(params.id)}/gifts`, gift)).map((g) => ({ id: g.id, name: g.name }));
+		} catch (err) {
+			return fail(503, { ok: false, dryRun: false, message: `${loadErrorMessage(err, 'gifts')} Nothing was changed.` });
+		}
+		const result = await setGiftStatus(getGuards(), form, gifts);
 		return result.ok ? result : fail(400, result);
 	},
 	// Change the profile photo (upload + set as avatar; see photo-save.ts)

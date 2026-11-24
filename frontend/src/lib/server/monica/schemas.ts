@@ -208,6 +208,7 @@ export const gift = z.looseObject({
 	url: nstr,
 	status: nstr, // idea | offered | received
 	amount_with_currency: nstr,
+	amount: nstr.optional(),
 	date: nstr
 });
 export const reminder = z.looseObject({

@@ -7,6 +7,7 @@
 	import BirthdayEdit from '#lib/components/BirthdayEdit.svelte';
 	import NoteAdd from '#lib/components/NoteAdd.svelte';
 	import FieldEditor from '#lib/components/FieldEditor.svelte';
+	import GiftEditor from '#lib/components/GiftEditor.svelte';
 	import RefreshButton from '#lib/components/RefreshButton.svelte';
 	import ReminderList from '#lib/components/ReminderList.svelte';
 	import type { TimelineItem } from '#lib/contact.js';
@@ -61,7 +62,6 @@
 		showAllNotes = false;
 		expanded.clear();
 	});
-	const giftStatus: Record<string, string> = { idea: 'Idea', offered: 'Given', received: 'Received' };
 
 	function birthdayLine(b: NonNullable<typeof c.birthday>): string {
 		const when = b.daysUntil === 0 ? 'today 🎉' : b.daysUntil === 1 ? 'tomorrow' : `in ${b.daysUntil} days`;
@@ -340,19 +340,7 @@
 			{@render fold('Tasks', c.tasks.filter((t) => !t.completed).length, taskBody, c.tasks.some((t) => !t.completed))}
 
 			{#snippet giftBody()}
-				{#if c.gifts.length}
-					<ul class="flex flex-col gap-2">
-						{#each c.gifts as g (g.id)}
-							<li class="text-sm">
-								<div class="flex justify-between gap-2">
-									{#if g.href}<a href={g.href} target="_blank" rel="noopener noreferrer" class="text-accent">{g.name}</a>{:else}<span>{g.name}</span>{/if}
-									{#if g.status}<span class="text-xs text-muted">{giftStatus[g.status] ?? g.status}</span>{/if}
-								</div>
-								{#if g.amount || g.comment}<p class="text-xs text-muted">{[g.amount, g.comment].filter(Boolean).join(' · ')}</p>{/if}
-							</li>
-						{/each}
-					</ul>
-				{:else}<p class="text-sm text-muted">No gifts or ideas yet.</p>{/if}
+				<GiftEditor gifts={c.gifts} ondone={(r) => (notice = r)} />
 			{/snippet}
 			{@render fold('Gifts', c.gifts.length, giftBody)}
 

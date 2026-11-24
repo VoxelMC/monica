@@ -173,6 +173,7 @@ describe('allowlist', () => {
 			'POST /api/contactfields',
 			'POST /api/contacts/{id}/setTags',
 			'POST /api/contacts/{id}/unsetTag',
+			'POST /api/gifts',
 			'POST /api/journal',
 			'POST /api/notes',
 			'POST /api/photos',
@@ -180,6 +181,7 @@ describe('allowlist', () => {
 			'PUT /api/contacts/{id}',
 			'PUT /api/contacts/{id}', // add a birthday; correct a birthday
 			'PUT /api/contacts/{id}/avatar',
+			'PUT /api/gifts/{id}',
 			'PUT /api/tags/{id}'
 		]);
 		// The only contact updates are the birthday (add, correct) and avatar rules, and contacts can never be deleted
@@ -582,6 +584,42 @@ describe('phones and emails (POST /api/contactfields, PUT /api/contactfields/{id
 		await expect(guards.update('contactfield.update', 29, { data: 'a' }, 'T0')).rejects.toBeInstanceOf(ConflictError);
 		const ro = setup({ readOnly: true, allowlist: [...WRITE_ALLOWLIST], replies: [] });
 		await expect(ro.guards.create('contactfield.create', { contact_id: 13, contact_field_type_id: 1, data: 'a' })).rejects.toMatchObject({ reason: 'read-only' });
+		expect(ro.calls).toHaveLength(0);
+	});
+});
+
+describe('gifts (POST /api/gifts, PUT /api/gifts/{id} status only)', () => {
+	const GIFT = { data: { id: 3, object: 'gift', name: 'Climbing shoes', comment: 'size 42', url: 'https://shop.test/x', amount: null, value: '', status: 'idea', date: '2026-12-20', recipient: { id: 9 }, contact: { id: 7 }, updated_at: 'T1' } };
+	it('adds an idea for one person', async () => {
+		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: GIFT }] });
+		await guards.create('gift.create', { contact_id: 7, name: 'Book', status: 'idea', comment: null, url: 'https://a.test/b' });
+		expect(calls[0]).toMatchObject({ method: 'POST', body: { contact_id: 7, name: 'Book', status: 'idea', url: 'https://a.test/b' } });
+	});
+	it('changes the status and sends every other field back exactly', async () => {
+		const { guards, calls, rows } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: GIFT }, { body: GIFT }] });
+		await guards.update('gift.status', 3, { status: 'offered' }, 'T1');
+		expect(calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual(['GET /api/gifts/3', 'PUT /api/gifts/3']);
+		expect(calls[1].body).toEqual({ contact_id: 7, name: 'Climbing shoes', status: 'offered', comment: 'size 42', url: 'https://shop.test/x', amount: null, date: '2026-12-20', recipient_id: 9 });
+		expect(JSON.parse(rows()[0].beforeJson!).status).toBe('idea');
+	});
+	it('a gift with a price is left to Monica (no PUT)', async () => {
+		const priced = { data: { ...GIFT.data, amount: '120.00' } };
+		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: priced }] });
+		await expect(guards.update('gift.status', 3, { status: 'offered' }, 'T1')).rejects.toMatchObject({ reason: 'precondition' });
+		expect(calls.map((c) => c.method)).toEqual(['GET']);
+	});
+	it('refuses bad gifts, other statuses and fields, conflicts and read-only', async () => {
+		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: GIFT }] });
+		for (const b of [{ contact_id: 7, name: '', status: 'idea' }, { contact_id: 7, name: 'x', status: 'offered' }, { contact_id: 7, name: 'x', status: 'idea', url: 'javascript:alert(1)' }, { name: 'x', status: 'idea' }]) {
+			await expect(guards.create('gift.create', b)).rejects.toMatchObject({ reason: 'invalid-body' });
+		}
+		await expect(guards.create('gift.create', { contact_id: 7, name: 'x', status: 'idea', amount: 5 })).rejects.toMatchObject({ reason: 'field-not-editable' });
+		await expect(guards.update('gift.status', 3, { status: 'lost' }, 'T1')).rejects.toMatchObject({ reason: 'invalid-body' });
+		await expect(guards.update('gift.status', 3, { status: 'offered', name: 'y' }, 'T1')).rejects.toMatchObject({ reason: 'field-not-editable' });
+		expect(calls).toHaveLength(0);
+		await expect(guards.update('gift.status', 3, { status: 'offered' }, 'T0')).rejects.toBeInstanceOf(ConflictError);
+		const ro = setup({ readOnly: true, allowlist: [...WRITE_ALLOWLIST], replies: [] });
+		await expect(ro.guards.create('gift.create', { contact_id: 7, name: 'x', status: 'idea' })).rejects.toMatchObject({ reason: 'read-only' });
 		expect(ro.calls).toHaveLength(0);
 	});
 });

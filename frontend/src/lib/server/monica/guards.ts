@@ -44,6 +44,23 @@ export interface WriteRule {
 	refuseIf?: (current: Json) => string | null;
 }
 
+/** A gift as Monica returns it, back in UpdateGift's input format (every field kept). */
+export function giftPayloadFromCurrent(c: Json): Json {
+	const contactId = (c.contact as { id?: unknown } | null | undefined)?.id;
+	if (!Number.isInteger(contactId)) throw new Error('Gift has no contact');
+	const recipient = (c.recipient as { id?: unknown } | null | undefined)?.id;
+	const date = typeof c.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(c.date) ? c.date.slice(0, 10) : null;
+	return {
+		contact_id: contactId,
+		name: c.name,
+		status: c.status,
+		comment: c.comment ?? null,
+		url: c.url ?? null,
+		amount: c.amount ?? null,
+		date,
+		recipient_id: Number.isInteger(recipient) ? recipient : null
+	};
+}
 const fieldText = (v: unknown) => (typeof v === 'string' && v.trim() === v && v.length >= 1 && v.length <= 255 ? null : 'the value must be 1-255 characters, no surrounding spaces');
 const oneTagName = (b: Json) => {
 	const t = b.tags;
@@ -130,6 +147,34 @@ export const WRITE_ALLOWLIST: readonly WriteRule[] = [
 			const type = (c.contact_field_type as { type?: unknown } | undefined)?.type;
 			return type === 'phone' || type === 'email' ? null : 'only phone numbers and email addresses can be changed';
 		}
+	},
+	// Gifts (2026-11-24): add a gift idea for one person, and change a gift's status
+	// (e.g. idea -> given). Monica's UpdateGift rewrites every field, so updates send
+	// the gift back as it is (fresh GET) with only the status changed.
+	{
+		key: 'gift.create',
+		method: 'POST',
+		path: '/api/gifts',
+		editableFields: ['contact_id', 'name', 'status', 'comment', 'url'],
+		validate: (b) => {
+			if (!(Number.isInteger(b.contact_id) && (b.contact_id as number) > 0)) return 'a contact is required';
+			if (b.status !== 'idea') return 'new gifts start as ideas';
+			if (typeof b.name !== 'string' || !b.name.trim() || b.name.length > 255) return 'a name (up to 255 characters) is required';
+			if (b.comment != null && (typeof b.comment !== 'string' || b.comment.length > 10_000)) return 'the comment is too long';
+			if (b.url != null && (typeof b.url !== 'string' || !/^https?:\/\/\S+$/.test(b.url) || b.url.length > 2000)) return 'the link must start with http:// or https://';
+			return null;
+		}
+	},
+	{
+		key: 'gift.status',
+		method: 'PUT',
+		path: '/api/gifts/{id}',
+		editableFields: ['status'],
+		toPayload: giftPayloadFromCurrent,
+		validate: (b) => (b.status === 'idea' || b.status === 'offered' || b.status === 'received' ? null : 'status must be idea, offered or received'),
+		// A price goes through Monica's money formatting and the user's currency on save;
+		// not verified on staging, so gifts with a price are changed in Monica only.
+		refuseIf: (c) => (c.amount != null && c.amount !== '' ? 'this gift has a price; change it in Monica' : null)
 	},
 	// Renaming a tag (2026-11-24): one write; every contact keeps the tag. Fresh GET of
 	// the tag, conflict check on its updated_at; only the name is sent.
