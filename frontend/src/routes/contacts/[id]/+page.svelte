@@ -8,6 +8,7 @@
 	import NoteAdd from '#lib/components/NoteAdd.svelte';
 	import FieldEditor from '#lib/components/FieldEditor.svelte';
 	import GiftEditor from '#lib/components/GiftEditor.svelte';
+	import CatchupTarget from '#lib/components/CatchupTarget.svelte';
 	import RefreshButton from '#lib/components/RefreshButton.svelte';
 	import ReminderList from '#lib/components/ReminderList.svelte';
 	import type { TimelineItem } from '#lib/contact.js';
@@ -148,6 +149,7 @@
 		</div>
 	</header>
 	<ContactTags tags={c.tags} allTags={data.allTags} ondone={(r) => (notice = r)} />
+	<div class="mb-3"><CatchupTarget days={data.catchup.days} source={data.catchup.source} lastContacted={data.catchup.lastContacted} ondone={(r) => (notice = r)} /></div>
 	<div class="mb-3 flex gap-2">
 		<a href="/log?people={c.id}" class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[var(--radius-input)] border border-accent-solid font-medium text-accent">
 			<span aria-hidden="true">+</span> Log a catch-up

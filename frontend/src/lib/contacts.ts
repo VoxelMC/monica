@@ -20,8 +20,9 @@ export interface ContactCard {
 	emails: string[];
 	/** Calendar birthday (year null when unknown); null if none or deceased. */
 	birthday?: import('./contact').Birthday | null;
-	/** Monica's "stay in touch" target in days, if set. */
+	/** Catch-up target in days: orbit's own if set, else Monica's "stay in touch". */
 	stayInTouchDays?: number | null;
+	targetSource?: 'orbit' | 'monica' | null;
 	updatedAt?: string;
 }
 

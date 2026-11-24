@@ -42,3 +42,12 @@ export const reminders = sqliteTable('reminders', {
 	lastAttemptAt: text('last_attempt_at'),
 	lastError: text('last_error')
 });
+
+// Catch-up targets (slice 5, 2026-11-24): "see Ana every 3 weeks". Monica's own
+// "stay in touch" can't be set through its API, so orbit keeps its own target;
+// where none is set here, Monica's stay-in-touch frequency is used.
+export const contactMeta = sqliteTable('contact_meta', {
+	monicaContactId: integer('monica_contact_id').primaryKey(),
+	catchupIntervalDays: integer('catchup_interval_days'), // null = no orbit target
+	updatedAt: text('updated_at').notNull()
+});

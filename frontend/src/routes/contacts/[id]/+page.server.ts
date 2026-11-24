@@ -2,6 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import { removeEntry } from '#lib/server/remove-entry.js';
 import { savePhoto } from '#lib/server/photo-save.js';
 import { addNote } from '#lib/server/note-save.js';
+import { catchupTarget, setCatchupTarget } from '#lib/server/catchup.js';
 import { addGiftIdea, setGiftStatus } from '#lib/server/gift-save.js';
 import { gift } from '#lib/server/monica/schemas.js';
 import { addField, editField } from '#lib/server/contact-fields-save.js';
@@ -36,6 +37,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 			contact,
 			mentionedIn,
 			allTags,
+			catchup: await catchupFor(contact.id),
 			timedReminders: openReminders(getDb(), contact.id),
 			ntfyConfigured: settings.ntfyConfigured,
 			monicaLink: settings.publicMonicaUrl ? `${settings.publicMonicaUrl}/people/${encodeURIComponent(contact.hashId)}` : null
@@ -47,7 +49,25 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 	}
 };
 
+/** The contact's catch-up target (orbit's, else Monica's) and last contact date. */
+async function catchupFor(id: number) {
+	const own = catchupTarget(getDb(), id);
+	let card;
+	try {
+		card = (await listContacts(monica)).find((c) => c.id === id);
+	} catch {
+		card = undefined;
+	}
+	const monicaDays = card?.stayInTouchDays ?? null;
+	return { days: own ?? monicaDays, source: own ? ('orbit' as const) : monicaDays ? ('monica' as const) : null, lastContacted: card?.lastContacted ?? null };
+}
+
 export const actions: Actions = {
+	// Catch-up target (orbit's own database; not a Monica write)
+	catchup: async ({ params, request }) => {
+		const result = setCatchupTarget(getDb(), Number(params.id), await request.formData());
+		return result.ok ? result : fail(400, result);
+	},
 	// Remove a hangout, note or journal entry (confirmed in the UI; see remove-entry.ts)
 	remove: async ({ request }) => {
 		const result = await removeEntry(getGuards(), await request.formData());

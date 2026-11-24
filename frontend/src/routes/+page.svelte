@@ -104,7 +104,7 @@
 					{#each overdue as o (o.contact.id)}
 						{@render person(
 							o.contact,
-							o.daysSince === null ? `Never logged · target every ${o.targetDays} days` : `Last contact ${o.daysSince} days ago · target ${o.targetDays}`,
+							o.daysSince === null ? `Never logged · target every ${o.targetDays} days` : `Last contact ${o.daysSince} days ago · target ${o.targetDays}${o.contact.targetSource === 'monica' ? ' (Monica)' : ''}`,
 							'text-attention'
 						)}
 					{/each}
@@ -112,7 +112,7 @@
 			{:else if hasTargets}
 				<p class="text-sm text-muted">Everyone is within their catch-up target. 🎉</p>
 			{:else}
-				<p class="text-sm text-muted">No catch-up targets yet. Set “Stay in touch” on a contact in Monica; orbit’s own targets arrive in slice 5.</p>
+				<p class="text-sm text-muted">No catch-up targets yet. Open someone’s page and set “Catch up every…”.</p>
 			{/if}
 		{/snippet}
 		{@render section('Catch up soon', overdue.length, catchup, 'catch-up')}

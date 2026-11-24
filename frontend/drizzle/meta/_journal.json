@@ -22,6 +22,13 @@
       "when": 1795467179387,
       "tag": "0002_many_the_professor",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1795553381703,
+      "tag": "0003_uneven_prodigy",
+      "breakpoints": true
     }
   ]
 }
