@@ -1,16 +1,32 @@
-import { error } from '@sveltejs/kit';
-import { listContacts, listTagNames } from '#lib/server/monica/contacts.js';
-import { monica } from '#lib/server/monica/index.js';
+import { error, fail } from '@sveltejs/kit';
+import { listContacts, listTags } from '#lib/server/monica/contacts.js';
+import { getGuards, monica } from '#lib/server/monica/index.js';
 import { loadErrorMessage } from '#lib/server/monica/errors.js';
-import type { PageServerLoad } from './$types';
+import { mergeTags, renameTag } from '#lib/server/tags-save.js';
+import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ setHeaders }) => {
 	try {
-		const [contacts, tagNames] = await Promise.all([listContacts(monica), listTagNames(monica)]);
+		const [contacts, tags] = await Promise.all([listContacts(monica), listTags(monica)]);
 		setHeaders({ 'cache-control': 'private, no-store' });
-		return { contacts, tagNames };
+		return { contacts, tags, tagNames: tags.map((t) => t.name) };
 	} catch (err) {
 		console.error('tags page failed:', err instanceof Error ? err.message : err);
 		error(502, loadErrorMessage(err, 'tags'));
+	}
+};
+
+export const actions: Actions = {
+	// Rename one tag (tag.rename; see tags-save.ts)
+	rename: async ({ request }) => {
+		const result = await renameTag(getGuards(), await request.formData(), await listTags(monica));
+		return result.ok ? result : fail(400, result);
+	},
+	// Merge tag A into B: add B, then remove A, per person (approved tag writes)
+	merge: async ({ request }) => {
+		const form = await request.formData();
+		const [contacts, tags] = await Promise.all([listContacts(monica), listTags(monica)]);
+		const result = await mergeTags(getGuards(), form, contacts, tags);
+		return result.ok ? result : fail(400, result);
 	}
 };

@@ -102,6 +102,16 @@ export const WRITE_ALLOWLIST: readonly WriteRule[] = [
 	// unsetTag only detaches (the tag stays in Monica). unsetTags (all tags) is never allowed.
 	{ key: 'contact.tags.add', method: 'POST', path: '/api/contacts/{id}/setTags', editableFields: ['tags'], validate: oneTagName },
 	{ key: 'contact.tags.remove', method: 'POST', path: '/api/contacts/{id}/unsetTag', editableFields: ['tags'], validate: oneTagId },
+	// Renaming a tag (2026-11-24): one write; every contact keeps the tag. Fresh GET of
+	// the tag, conflict check on its updated_at; only the name is sent.
+	{
+		key: 'tag.rename',
+		method: 'PUT',
+		path: '/api/tags/{id}',
+		editableFields: ['name'],
+		toPayload: () => ({}),
+		validate: (b) => (typeof b.name === 'string' && b.name.trim() === b.name && b.name.length >= 1 && b.name.length <= 255 ? null : 'a tag name (1-255 characters, no surrounding spaces)')
+	},
 	// Journal entries (2026-11-23): Monica accepts only title and post (the date is the day it is saved)
 	// Contact photos (2026-11-23): upload one image for one contact, then make it the avatar.
 	// Old photos stay in Monica; nothing is removed.

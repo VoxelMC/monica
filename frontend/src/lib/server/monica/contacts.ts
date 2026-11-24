@@ -84,7 +84,7 @@ export async function listOpenTasks(client: MonicaClient) {
 }
 
 /** Tags with their ids (GET /api/tags), for removing a tag by id. */
-export async function listTags(client: MonicaClient): Promise<{ id: number; name: string }[]> {
+export async function listTags(client: MonicaClient): Promise<{ id: number; name: string; updatedAt: string | null }[]> {
 	const tags = await client.getAll('/api/tags', tag);
-	return tags.map((t) => ({ id: t.id, name: t.name }));
+	return tags.map((t) => ({ id: t.id, name: t.name, updatedAt: typeof t.updated_at === 'string' ? t.updated_at : null }));
 }

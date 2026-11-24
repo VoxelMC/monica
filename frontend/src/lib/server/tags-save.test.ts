@@ -3,7 +3,7 @@ import type { ContactCard } from '../contacts';
 import { createTransport } from './monica/client';
 import { createGuards, WRITE_ALLOWLIST } from './monica/guards';
 import { fakeClock, fakeFetch, memoryAudit } from './monica/test-helpers';
-import { addTagsToContact, saveTags } from './tags-save';
+import { addTagsToContact, mergeTags, renameTag, saveTags } from './tags-save';
 
 const card = (id: number, tags: string[]): ContactCard => ({ id, name: 'P' + id, firstName: null, lastName: null, nickname: null, initials: 'P', color: '#000', hasPhoto: false, starred: false, tags, lastContacted: null, createdAt: 'x', phones: [], emails: [] });
 const contacts = [card(1, []), card(2, ['Paris']), card(3, ['paris', 'Work'])];
@@ -82,5 +82,74 @@ describe('addTagsToContact (several tags, one person)', () => {
 		const ro = setup(true);
 		expect((await addTagsToContact(ro.guards, 1, ['Paris'], contacts, tags)).message).toMatch(/read-only/);
 		expect(ro.calls).toHaveLength(0);
+	});
+});
+
+describe('renameTag', () => {
+	const fd = (o: Record<string, string>) => {
+		const f = new FormData();
+		for (const [k, v] of Object.entries(o)) f.set(k, v);
+		return f;
+	};
+	const TAG = { data: { id: 10, object: 'tag', name: 'Paris', updated_at: 'T1' } };
+	const run = () => {
+		const f = fakeFetch([{ body: TAG }, { body: TAG }]);
+		const transport = createTransport({ baseUrl: 'http://127.0.0.1:8081', token: 't', readOnly: false, fetch: f.fetch, ...fakeClock() });
+		return { ...f, guards: createGuards({ transport, readOnly: false, dryRun: false, audit: memoryAudit().audit, allowlist: WRITE_ALLOWLIST }) };
+	};
+	it('renames with tidy spacing; a case-only change is allowed', async () => {
+		const { guards, calls } = run();
+		expect(await renameTag(guards, fd({ tagId: '10', name: '  Paris   2026 ', updatedAt: 'T1' }), tags)).toMatchObject({ ok: true, message: 'Renamed “Paris” to “Paris 2026”.' });
+		expect(calls[1].body).toEqual({ name: 'Paris 2026' });
+		const b = run();
+		expect((await renameTag(b.guards, fd({ tagId: '10', name: 'PARIS', updatedAt: 'T1' }), tags)).ok).toBe(true);
+	});
+	it('refuses a name another tag has (suggests merge), no-ops, unknown tags; sends nothing', async () => {
+		const { guards, calls } = run();
+		expect((await renameTag(guards, fd({ tagId: '10', name: 'work', updatedAt: 'T1' }), tags)).message).toMatch(/already a tag called “Work”.*Merge/);
+		expect((await renameTag(guards, fd({ tagId: '10', name: 'Paris', updatedAt: 'T1' }), tags)).ok).toBe(false);
+		expect((await renameTag(guards, fd({ tagId: '99', name: 'X', updatedAt: 'T1' }), tags)).ok).toBe(false);
+		expect((await renameTag(guards, fd({ tagId: '10', name: ' ', updatedAt: 'T1' }), tags)).ok).toBe(false);
+		expect(calls).toHaveLength(0);
+	});
+	it('conflict: the tag changed since the page loaded', async () => {
+		const { guards } = run();
+		expect((await renameTag(guards, fd({ tagId: '10', name: 'Lyon', updatedAt: 'T0' }), tags)).message).toMatch(/changed in Monica/);
+	});
+});
+
+describe('mergeTags', () => {
+	const fd = (o: Record<string, string>) => {
+		const f = new FormData();
+		for (const [k, v] of Object.entries(o)) f.set(k, v);
+		return f;
+	};
+	it('adds B before removing A, per person; skips adding to people who have B', async () => {
+		const { guards, calls } = setup();
+		// contacts: 2 has Paris; 3 has paris and Work. Merge Paris (10) into Work (11)
+		const r = await mergeTags(guards, fd({ fromId: '10', toId: '11' }), contacts, tags);
+		expect(r).toMatchObject({ ok: true, moved: 2 });
+		expect(calls.map((c) => [new URL(c.url).pathname, c.body])).toEqual([
+			['/api/contacts/2/setTags', { tags: ['Work'] }],
+			['/api/contacts/2/unsetTag', { tags: [10] }],
+			['/api/contacts/3/unsetTag', { tags: [10] }]
+		]);
+		expect(r.message).toMatch(/Moved 2 people from “Paris” to “Work”.*unused/);
+	});
+	it('stops at the first failure: that person keeps A (B was added first)', async () => {
+		const f = fakeFetch([{ body: { data: {} } }, { status: 500 }]);
+		const transport = createTransport({ baseUrl: 'http://127.0.0.1:8081', token: 't', readOnly: false, fetch: f.fetch, ...fakeClock() });
+		const guards = createGuards({ transport, readOnly: false, dryRun: false, audit: memoryAudit().audit, allowlist: WRITE_ALLOWLIST });
+		const r = await mergeTags(guards, fd({ fromId: '10', toId: '11' }), contacts, tags);
+		expect(r).toMatchObject({ ok: false, moved: 0 });
+		expect(r.message).toMatch(/P2: .*Moved 0 of 2/);
+		expect(f.calls).toHaveLength(2);
+	});
+	it('refuses same tag, unknown tags; nobody to move is fine', async () => {
+		const { guards, calls } = setup();
+		expect((await mergeTags(guards, fd({ fromId: '10', toId: '10' }), contacts, tags)).ok).toBe(false);
+		expect((await mergeTags(guards, fd({ fromId: '10', toId: '99' }), contacts, tags)).ok).toBe(false);
+		expect(await mergeTags(guards, fd({ fromId: '11', toId: '10' }), [card(1, [])], tags)).toMatchObject({ ok: true, moved: 0 });
+		expect(calls).toHaveLength(0);
 	});
 });

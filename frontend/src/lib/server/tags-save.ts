@@ -3,7 +3,7 @@
 // nothing is sent needlessly. Stops at the first failure and reports progress.
 import { z } from 'zod';
 import type { ContactCard } from '../contacts';
-import { MonicaError, WriteRefusedError } from './monica/errors';
+import { ConflictError, MonicaError, WriteRefusedError } from './monica/errors';
 import type { Guards } from './monica/guards';
 
 const input = z.object({
@@ -111,4 +111,74 @@ export async function addTagsToContact(
 		? `${dryRun ? 'Dry run: would have added' : 'Added'} ${list}${skipped ? ` (${skipped} already there)` : ''}.`
 		: 'They already have those tags.';
 	return { ok: true, message, done: added.length ? [contactId] : [], skipped, dryRun, added };
+}
+
+const sameTag = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0;
+function why(err: unknown): string {
+	if (err instanceof ConflictError) return 'the tag changed in Monica since this page loaded (reload and try again)';
+	if (err instanceof WriteRefusedError && err.reason === 'read-only') return 'orbit is read-only (ORBIT_READ_ONLY=true)';
+	if (err instanceof WriteRefusedError) return `orbit refused it (${err.reason})`;
+	if (err instanceof MonicaError) return err.message;
+	return 'something went wrong';
+}
+
+/** Rename one tag (2026-11-24): one guarded PUT; every contact keeps it. */
+export async function renameTag(guards: Guards, form: FormData, tags: { id: number; name: string }[]): Promise<{ ok: boolean; message: string; dryRun: boolean }> {
+	const parsed = z.object({ tagId: z.coerce.number().int().positive(), name: z.string().max(255), updatedAt: z.string().min(1).max(40) }).safeParse({ tagId: form.get('tagId'), name: form.get('name') ?? '', updatedAt: form.get('updatedAt') });
+	if (!parsed.success) return { ok: false, dryRun: false, message: 'The form could not be read. Reload the page and try again.' };
+	const { tagId, updatedAt } = parsed.data;
+	const name = parsed.data.name.trim().replace(/\s+/g, ' ');
+	const tag = tags.find((t) => t.id === tagId);
+	if (!tag) return { ok: false, dryRun: false, message: 'That tag is not in Monica any more. Reload the page.' };
+	if (!name) return { ok: false, dryRun: false, message: 'Type the new name.' };
+	if (name === tag.name) return { ok: false, dryRun: false, message: 'That is already its name.' };
+	const clash = tags.find((t) => t.id !== tagId && sameTag(t.name, name));
+	if (clash) return { ok: false, dryRun: false, message: `There is already a tag called “${clash.name}”. Use “Merge into” to combine them.` };
+	try {
+		const res = await guards.update('tag.rename', tagId, { name }, updatedAt);
+		return { ok: true, dryRun: res.dryRun, message: res.dryRun ? 'Dry run: the rename is in the audit log; nothing was sent.' : `Renamed “${tag.name}” to “${name}”.` };
+	} catch (err) {
+		return { ok: false, dryRun: false, message: `Not renamed: ${why(err)}.` };
+	}
+}
+
+/**
+ * Merge tag A into tag B (2026-11-24): for each person with A, add B (unless they
+ * have it), then take A off. B is always added before A is removed, so nobody is
+ * left without either. A stays in Monica, unused (orbit never deletes tags).
+ * Stops at the first failure and reports progress.
+ */
+export async function mergeTags(
+	guards: Guards,
+	form: FormData,
+	contacts: ContactCard[],
+	tags: { id: number; name: string }[]
+): Promise<{ ok: boolean; message: string; dryRun: boolean; moved: number }> {
+	const parsed = z.object({ fromId: z.coerce.number().int().positive(), toId: z.coerce.number().int().positive() }).safeParse({ fromId: form.get('fromId'), toId: form.get('toId') });
+	const fail = (message: string, moved = 0) => ({ ok: false, message, dryRun: false, moved });
+	if (!parsed.success) return fail('Pick the tag to merge into.');
+	const from = tags.find((t) => t.id === parsed.data.fromId);
+	const to = tags.find((t) => t.id === parsed.data.toId);
+	if (!from || !to) return fail('One of the tags is not in Monica any more. Reload the page.');
+	if (from.id === to.id) return fail('Pick a different tag to merge into.');
+	const people = contacts.filter((c) => c.tags.some((t) => sameTag(t, from.name)));
+	if (!people.length) return { ok: true, dryRun: false, moved: 0, message: `No one has “${from.name}”; nothing to move.` };
+
+	let moved = 0;
+	let dryRun = false;
+	for (const c of people) {
+		try {
+			if (!c.tags.some((t) => sameTag(t, to.name))) dryRun = (await guards.create('contact.tags.add', { tags: [to.name] }, c.id)).dryRun || dryRun;
+			dryRun = (await guards.create('contact.tags.remove', { tags: [from.id] }, c.id)).dryRun || dryRun;
+			moved++;
+		} catch (err) {
+			return fail(`${c.name}: ${why(err)}. Moved ${moved} of ${people.length} before this; the rest still have “${from.name}”.`, moved);
+		}
+	}
+	return {
+		ok: true,
+		dryRun,
+		moved,
+		message: `${dryRun ? 'Dry run: would have moved' : 'Moved'} ${moved} ${moved === 1 ? 'person' : 'people'} from “${from.name}” to “${to.name}”. “${from.name}” is now unused; delete it in Monica if you like.`
+	};
 }

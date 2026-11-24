@@ -177,10 +177,11 @@ describe('allowlist', () => {
 			'POST /api/photos',
 			'PUT /api/contacts/{id}',
 			'PUT /api/contacts/{id}', // add a birthday; correct a birthday
-			'PUT /api/contacts/{id}/avatar'
+			'PUT /api/contacts/{id}/avatar',
+			'PUT /api/tags/{id}'
 		]);
 		// The only contact updates are the birthday (add, correct) and avatar rules, and contacts can never be deleted
-		expect(WRITE_ALLOWLIST.filter((r) => r.method === 'PUT').map((r) => r.key)).toEqual(['contact.birthday', 'contact.birthday.change', 'contact.avatar']);
+		expect(WRITE_ALLOWLIST.filter((r) => r.method === 'PUT' && r.path.startsWith('/api/contacts')).map((r) => r.key)).toEqual(['contact.birthday', 'contact.birthday.change', 'contact.avatar']);
 		expect(WRITE_ALLOWLIST.some((r) => r.method === 'DELETE' && r.path.includes('contacts'))).toBe(false);
 		expect(WRITE_ALLOWLIST.some((r) => r.path.endsWith('/unsetTags'))).toBe(false);
 	});
@@ -525,6 +526,27 @@ describe('contact.birthday.change (PUT, only when a birthday exists)', () => {
 		await expect(guards.update('contact.birthday.change', 7, changes, 'T0')).rejects.toBeInstanceOf(ConflictError);
 		const ro = setup({ readOnly: true, allowlist: [...WRITE_ALLOWLIST], replies: [] });
 		await expect(ro.guards.update('contact.birthday.change', 7, changes, 'T1')).rejects.toMatchObject({ reason: 'read-only' });
+		expect(ro.calls).toHaveLength(0);
+	});
+});
+
+describe('tag.rename (PUT /api/tags/{id})', () => {
+	const TAG = { data: { id: 4, object: 'tag', name: 'Van', name_slug: 'van', updated_at: 'T1' } };
+	it('reads the tag, checks for conflicts, sends only the new name', async () => {
+		const { guards, calls, rows } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: TAG }, { body: { data: { ...TAG.data, name: 'Vancouver' } } }] });
+		await guards.update('tag.rename', 4, { name: 'Vancouver' }, 'T1');
+		expect(calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual(['GET /api/tags/4', 'PUT /api/tags/4']);
+		expect(calls[1].body).toEqual({ name: 'Vancouver' });
+		expect(JSON.parse(rows()[0].beforeJson!).name).toBe('Van');
+	});
+	it('refuses empty or padded names, other fields, conflicts and read-only', async () => {
+		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: TAG }] });
+		for (const name of ['', ' Van', 'x'.repeat(256), 3]) await expect(guards.update('tag.rename', 4, { name }, 'T1')).rejects.toMatchObject({ reason: 'invalid-body' });
+		await expect(guards.update('tag.rename', 4, { name: 'A', name_slug: 'a' }, 'T1')).rejects.toMatchObject({ reason: 'field-not-editable' });
+		expect(calls).toHaveLength(0);
+		await expect(guards.update('tag.rename', 4, { name: 'A' }, 'T0')).rejects.toBeInstanceOf(ConflictError);
+		const ro = setup({ readOnly: true, allowlist: [...WRITE_ALLOWLIST], replies: [] });
+		await expect(ro.guards.update('tag.rename', 4, { name: 'A' }, 'T1')).rejects.toMatchObject({ reason: 'read-only' });
 		expect(ro.calls).toHaveLength(0);
 	});
 });
