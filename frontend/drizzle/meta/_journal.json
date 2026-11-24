@@ -36,6 +36,13 @@
       "when": 1795553501236,
       "tag": "0004_previous_thanos",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1795553680789,
+      "tag": "0005_calm_inertia",
+      "breakpoints": true
     }
   ]
 }

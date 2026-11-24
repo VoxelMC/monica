@@ -148,5 +148,5 @@
 		{@render section('Recently added or updated', 0, recentBody, 'recent')}
 	</div>
 
-	<p class="mt-8 flex justify-center gap-6 text-sm lg:hidden"><a href="/groups" class="text-muted underline underline-offset-2">Groups</a><a href="/reminders" class="text-muted underline underline-offset-2">Reminders</a><a href="/settings" class="text-muted underline underline-offset-2">Settings</a><a href="/health" class="text-muted underline underline-offset-2">System health</a></p>
+	<p class="mt-8 flex justify-center gap-6 text-sm lg:hidden"><a href="/groups" class="text-muted underline underline-offset-2">Groups</a><a href="/trips" class="text-muted underline underline-offset-2">Trips</a><a href="/reminders" class="text-muted underline underline-offset-2">Reminders</a><a href="/settings" class="text-muted underline underline-offset-2">Settings</a><a href="/health" class="text-muted underline underline-offset-2">System health</a></p>
 </div>

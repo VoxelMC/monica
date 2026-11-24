@@ -69,3 +69,25 @@ export const groupMembers = sqliteTable(
 	},
 	(t) => [primaryKey({ columns: [t.groupId, t.monicaContactId] })]
 );
+
+// Souvenir lists (slice 5, 2026-11-24): "bring something back for…" per trip.
+export const trips = sqliteTable('trips', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	name: text('name').notNull(),
+	destination: text('destination'),
+	startDate: text('start_date'), // YYYY-MM-DD
+	endDate: text('end_date'),
+	createdAt: text('created_at').notNull()
+});
+export const souvenirList = sqliteTable(
+	'souvenir_list',
+	{
+		tripId: integer('trip_id')
+			.notNull()
+			.references(() => trips.id, { onDelete: 'cascade' }),
+		monicaContactId: integer('monica_contact_id').notNull(),
+		note: text('note').notNull().default(''),
+		done: integer('done', { mode: 'boolean' }).notNull().default(false)
+	},
+	(t) => [primaryKey({ columns: [t.tripId, t.monicaContactId] })]
+);
