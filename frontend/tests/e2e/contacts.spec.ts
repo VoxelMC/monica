@@ -541,3 +541,69 @@ test('tab icon follows the theme chosen in Settings', async ({ page, context }) 
 	await expect.poll(async () => decodeURIComponent((await icon())!)).toContain('prefers-color-scheme:dark');
 	await context.clearCookies(); // leave the default theme for other tests
 });
+
+test('gifts: idea form is offered; read-only refuses saving it', async ({ page }) => {
+	await page.goto('/contacts/26');
+	await page.waitForLoadState('networkidle');
+	await page.locator('summary', { hasText: 'Gifts' }).click().catch(() => {});
+	await page.getByTestId('add-gift').click();
+	await expect(page.getByTestId('gift-save')).toBeDisabled();
+	await page.getByTestId('gift-name').fill('Read-only gift');
+	await page.getByTestId('gift-save').click();
+	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
+});
+
+test('catch-up target: set and clear (orbit only, works while read-only)', async ({ page }) => {
+	await page.goto('/contacts/26');
+	await page.waitForLoadState('networkidle');
+	const box = page.getByTestId('catchup');
+	await box.getByTestId('catchup-edit').click();
+	await box.getByTestId('catchup-choice').selectOption('14');
+	await box.getByTestId('catchup-save').click();
+	await expect(box).toContainText('Catch up every 2 weeks');
+	await box.getByTestId('catchup-edit').click();
+	await box.getByTestId('catchup-clear').click();
+	await expect(box).toContainText('+ Catch up every…');
+});
+
+test('groups and trips: create, use, delete (orbit only)', async ({ page }, info) => {
+	const name = `e2e ${info.project.name} ${Date.now()}`;
+	await page.goto('/groups');
+	await page.waitForLoadState('networkidle');
+	await page.getByTestId('new-group').click();
+	await page.getByTestId('group-form').getByLabel('Name').fill(name);
+	await page.getByTestId('member-picker').locator('label').nth(0).click();
+	await page.getByTestId('member-picker').locator('label').nth(1).click();
+	await expect(page.getByTestId('picked-count')).toHaveText('2 picked');
+	await page.getByTestId('group-create').click();
+	await expect(page.getByTestId('group-name')).toHaveText(name);
+	await expect(page.getByTestId('group-members').locator('li')).toHaveCount(2);
+	await expect(page.getByRole('link', { name: /Log a hangout with everyone/ })).toHaveAttribute('href', /\/log\?people=\d+,\d+/);
+	const groupUrl = page.url();
+
+	await page.goto('/trips');
+	await page.waitForLoadState('networkidle');
+	await page.getByTestId('new-trip').click();
+	await page.getByTestId('trip-form').getByLabel('Trip').fill(name);
+	await page.getByTestId('trip-create').click();
+	await page.waitForURL(/\/trips\/\d+/);
+	await page.waitForLoadState('networkidle');
+	await page.getByTestId('trip-add').click();
+	await page.getByLabel('Add a whole group').selectOption({ label: `${name} (2)` });
+	await page.getByRole('button', { name: 'Add group' }).click();
+	await expect(page.getByTestId('souvenirs').locator('li')).toHaveCount(2);
+	await page.getByTestId('souvenir-tick').first().click();
+	await expect(page.getByText('1 of 2 done')).toBeVisible();
+	await page.getByRole('button', { name: 'Delete' }).click();
+	await page.getByLabel('I understand').check();
+	await page.getByRole('button', { name: 'Delete trip' }).click();
+	await page.waitForURL(/\/trips$/);
+
+	await page.goto(groupUrl);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Delete' }).click();
+	await page.getByLabel('I understand').check();
+	await page.getByRole('button', { name: 'Delete group' }).click();
+	await page.waitForURL(/\/groups$/);
+	await expect(page.getByText(name)).toHaveCount(0);
+});

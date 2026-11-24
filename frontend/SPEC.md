@@ -385,20 +385,15 @@ Batch rules: show the exact list of contacts and the change before sending; one 
 
 ### Slice 5 — My own features (extension DB)
 
-- Target catch-up interval per contact (e.g. every 3 weeks)
-- Friend groups with stats: last time together, total activities, who is overdue
-- Gift ideas per person with status (idea, bought, given)
-- Souvenir reminders tied to trips: "bring something back for" lists
+**Status (2026-11-24): built; gifts (Monica writes) run on staging, awaiting approval.** Owner left the Monica-vs-orbit choice to Claude: use Monica's own data where its API allows it.
 
-**Done when:** these work without writing anything new into Monica's database, and the extension DB is in the nightly backup.
+- **Catch-up targets** (orbit, `contact_meta`, migration 0003). Monica's "stay in touch" cannot be set through its API (only its web UI, `ContactsController@stayInTouch`), so orbit keeps its own target per person ("Catch up every…" on the contact page). Where none is set, Monica's stay-in-touch is used (shown "from Monica"). Home's "Catch up soon" uses the result.
+- **Gift ideas** (Monica). `gift.create`: `POST /api/gifts`, ideas only (name, note, link). `gift.status`: `PUT /api/gifts/{id}`, only the status changes; UpdateGift rewrites every field, so the gift is sent back from a fresh GET (conflict-checked). Gifts with a price are refused (Monica's money formatting and the user's currency apply on save; not verified), so those are changed in Monica.
+- **Friend groups** (orbit, `groups` / `group_members`, migration 0004). `/groups` and `/groups/[id]`: members, last time together (a hangout with at least two members), hangouts this year, who is overdue; "Log a hangout with everyone"; groups listed on contact pages. Deleting a group removes only orbit's record (confirmed).
+- **Souvenir lists** (orbit, `trips` / `souvenir_list`, migration 0005). `/trips` and `/trips/[id]`: people (or a whole group), a note per person, tick when done; open items show on the person's page.
+- Staging 2026-11-24: gift "orbit test gift (staging)" added to Josh (13), marked given, then back to an idea (left on staging: orbit cannot delete gifts). A second quick tap during the reload hit the conflict check (correct); buttons now stay disabled until the page has the new version. Catch-up, groups and trips run through the UI on the dev database.
 
-**Timed reminders (requested 2026-11-23; built, tested on staging with a local fake ntfy)**
-
-- "Remind me…" on a contact page: a time (In 1 hour, In 3 hours, This evening, Tomorrow morning, or exact) and an optional note, e.g. "message Sam after their exam". Monica's own reminders are date-only and arrive by email at one fixed hour for the whole account, so these live in orbit and never touch Monica.
-- Stored in UTC with the IANA time zone they were picked in (`reminders` table, migration 0002). A loop in the server checks every 30 s and publishes due ones to ntfy (`ORBIT_NTFY_URL`, optional `ORBIT_NTFY_TOKEN`); tapping the notification opens the contact (`ORBIT_PUBLIC_URL`). Failed sends retry after 1, 2, 4 … minutes (at most hourly, 20 tries); reminders missed while orbit was down go out on start, marked "late". Without ntfy settings nothing is sent and the UI says so.
-- Shown on the contact page (Reminders card), Home, and `/reminders` (open + recently done). Done, +1 hour, +1 day, Remove. These change orbit's database only; they are not Monica writes, so they are not in the audit log.
-- The reminder keeps the contact's name (like `journal_mentions`), so a notification can go out even while Monica is busy or down.
-
+**Done when:** these work without writing anything new into Monica's database (gifts use Monica's own gift records), and the extension DB is in the nightly backup.
 
 ### Backlog — features found while using Monica
 
@@ -411,12 +406,11 @@ Features Monica lacks are stored in a separate SQLite file owned by the new app,
 
 | Table | Columns | Purpose |
 | --- | --- | --- |
-| `contact_meta` | `monica_contact_id` (PK), `catchup_interval_days`, `pinned`, `updated_at` | Catch-up targets and pins |
-| `groups` | `id`, `name`, `colour`, `created_at` | Friend groups |
-| `group_members` | `group_id`, `monica_contact_id` | Who is in each group |
-| `gift_ideas` | `id`, `monica_contact_id`, `title`, `link`, `occasion`, `status` (idea, bought, given), `price`, `currency`, `created_at` | Gift planning |
-| `trips` | `id`, `name`, `destination`, `start_date`, `end_date` | Trips for souvenir lists |
-| `souvenir_list` | `trip_id`, `monica_contact_id`, `note`, `done` | Who to bring something back for |
+| `contact_meta` | `monica_contact_id` (PK), `catchup_interval_days`, `updated_at` | Catch-up targets (built) |
+| `groups` | `id`, `name`, `created_at` | Friend groups (built) |
+| `group_members` | `group_id`, `monica_contact_id`, `added_at` | Who is in each group (built) |
+| `trips` | `id`, `name`, `destination`, `start_date`, `end_date`, `created_at` | Trips for souvenir lists (built) |
+| `souvenir_list` | `trip_id`, `monica_contact_id`, `note`, `done` | Who to bring something back for (built) |
 | `audit_log` | `id`, `at`, `method`, `endpoint`, `monica_id`, `before_json`, `after_json`, `dry_run`, `result` | Every write sent (or not sent) to Monica |
 | `journal_mentions` | `journal_entry_id`, `monica_contact_id`, `name`, `created_at` | Who a journal entry mentions (built) |
 | `reminders` | `monica_contact_id`, `contact_name`, `note`, `due_at` (UTC), `time_zone`, `sent_at`, `done_at`, `attempts`, `last_attempt_at`, `last_error` | Timed reminders sent through ntfy (built) |

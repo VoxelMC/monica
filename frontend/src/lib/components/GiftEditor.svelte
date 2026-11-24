@@ -22,14 +22,16 @@
 	const submit = () => {
 		busy = true;
 		return async ({ result, update }: { result: { type: string; data?: unknown }; update: (o?: { reset?: boolean }) => Promise<void> }) => {
-			busy = false;
 			const d = (result.type === 'success' || result.type === 'failure' ? result.data : null) as { ok: boolean; message: string } | null;
 			ondone(d ?? { ok: false, message: 'Something went wrong; check the audit log.' });
 			if (d?.ok) {
 				adding = false;
 				name = '';
 			}
+			// Stay disabled until the page has the gift's new version, so a quick second tap
+			// doesn't send the old one (which the conflict check would refuse).
 			await update({ reset: d?.ok ?? false });
+			busy = false;
 		};
 	};
 	const ideas = $derived(gifts.filter((g) => g.status === 'idea'));
