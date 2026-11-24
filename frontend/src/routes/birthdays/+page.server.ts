@@ -26,7 +26,12 @@ export const actions: Actions = {
 		} catch {
 			return fail(400, { ok: false, saved: [], dryRun: false, message: 'The form could not be read. Reload the page and try again.' });
 		}
-		const contacts = await listContacts(monica);
+		let contacts;
+		try {
+			contacts = await listContacts(monica);
+		} catch (err) {
+			return fail(503, { ok: false, saved: [], dryRun: false, message: `${loadErrorMessage(err, 'contacts')} Nothing was saved.` });
+		}
 		const result = await saveBirthdays(getGuards(), raw, new Map(contacts.map((c) => [c.id, c.name])), new Date(Date.now() + 86_400_000));
 		return result.ok ? result : fail(400, result);
 	}

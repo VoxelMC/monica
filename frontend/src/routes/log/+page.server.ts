@@ -28,7 +28,12 @@ export const actions: Actions = {
 		} catch {
 			return fail(400, { ok: false, message: 'The form could not be read. Reload the page and try again.' });
 		}
-		const [contacts, types] = await Promise.all([listContacts(monica), listActivityTypes(monica)]);
+		let contacts, types;
+		try {
+			[contacts, types] = await Promise.all([listContacts(monica), listActivityTypes(monica)]);
+		} catch (err) {
+			return fail(503, { ok: false, message: `${loadErrorMessage(err, 'contacts')} Nothing was saved.`, dryRun: false, activityId: null, notes: [] });
+		}
 		// The server runs in UTC; allow "today" in time zones ahead of it.
 		const tomorrow = todayIso(new Date(Date.now() + 86_400_000));
 		const result = await saveHangout(
@@ -47,7 +52,12 @@ export const actions: Actions = {
 		} catch {
 			return fail(400, { ok: false, message: 'The form could not be read. Reload the page and try again.', entryId: null, dryRun: false });
 		}
-		const contacts = await listContacts(monica);
+		let contacts;
+		try {
+			contacts = await listContacts(monica);
+		} catch (err) {
+			return fail(503, { ok: false, message: `${loadErrorMessage(err, 'contacts')} The entry was not saved.`, entryId: null, dryRun: false });
+		}
 		const result = await saveJournal(getGuards(), getDb(), raw, new Set(contacts.map((c) => c.id)));
 		return result.ok ? result : fail(result.entryId ? 502 : 400, result);
 	}

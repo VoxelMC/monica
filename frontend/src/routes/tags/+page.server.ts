@@ -19,13 +19,25 @@ export const load: PageServerLoad = async ({ setHeaders }) => {
 export const actions: Actions = {
 	// Rename one tag (tag.rename; see tags-save.ts)
 	rename: async ({ request }) => {
-		const result = await renameTag(getGuards(), await request.formData(), await listTags(monica));
+		const form = await request.formData();
+		let tags;
+		try {
+			tags = await listTags(monica);
+		} catch (err) {
+			return fail(503, { ok: false, dryRun: false, message: `${loadErrorMessage(err, 'tags')} Nothing was changed.` });
+		}
+		const result = await renameTag(getGuards(), form, tags);
 		return result.ok ? result : fail(400, result);
 	},
 	// Merge tag A into B: add B, then remove A, per person (approved tag writes)
 	merge: async ({ request }) => {
 		const form = await request.formData();
-		const [contacts, tags] = await Promise.all([listContacts(monica), listTags(monica)]);
+		let contacts, tags;
+		try {
+			[contacts, tags] = await Promise.all([listContacts(monica), listTags(monica)]);
+		} catch (err) {
+			return fail(503, { ok: false, dryRun: false, moved: 0, message: `${loadErrorMessage(err, 'tags')} Nothing was changed.` });
+		}
 		const result = await mergeTags(getGuards(), form, contacts, tags);
 		return result.ok ? result : fail(400, result);
 	}

@@ -25,7 +25,12 @@ export const actions: Actions = {
 		} catch {
 			return fail(400, { ok: false, done: [], skipped: 0, dryRun: false, message: 'The form could not be read. Reload the page and try again.' });
 		}
-		const [contacts, tags] = await Promise.all([listContacts(monica), listTags(monica)]);
+		let contacts, tags;
+		try {
+			[contacts, tags] = await Promise.all([listContacts(monica), listTags(monica)]);
+		} catch (err) {
+			return fail(503, { ok: false, done: [], skipped: 0, dryRun: false, message: `${loadErrorMessage(err, 'tags')} Nothing was changed.` });
+		}
 		const result = await saveTags(getGuards(), raw, contacts, tags);
 		return result.ok ? result : fail(400, result);
 	}

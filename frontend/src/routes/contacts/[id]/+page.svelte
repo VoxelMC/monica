@@ -6,6 +6,7 @@
 	import ContactTags from '#lib/components/ContactTags.svelte';
 	import BirthdayEdit from '#lib/components/BirthdayEdit.svelte';
 	import NoteAdd from '#lib/components/NoteAdd.svelte';
+	import FieldEditor from '#lib/components/FieldEditor.svelte';
 	import RefreshButton from '#lib/components/RefreshButton.svelte';
 	import ReminderList from '#lib/components/ReminderList.svelte';
 	import type { TimelineItem } from '#lib/contact.js';
@@ -158,17 +159,16 @@
 	<div class="grid gap-3 lg:grid-cols-[1fr_20rem]">
 		<div class="flex min-w-0 flex-col gap-3">
 			<!-- Contact fields -->
-			{#if c.phones.length || c.emails.length || c.otherFields.length || c.addresses.length}
-				{#snippet fieldsBody()}
-					<ul class="flex flex-col gap-1">
-						{#each c.phones as f, i (i)}{@render fieldRow(f.label, f.value, f.href)}{/each}
-						{#each c.emails as f, i (i)}{@render fieldRow(f.label, f.value, f.href)}{/each}
+			{#snippet fieldsBody()}
+				<FieldEditor phones={c.phones} emails={c.emails} ondone={(r) => (notice = r)} />
+				{#if c.otherFields.length || c.addresses.length}
+					<ul class="mt-2 flex flex-col gap-1 border-t border-line pt-2">
 						{#each c.otherFields as f, i (i)}{@render fieldRow(f.label, f.value, f.href, true)}{/each}
 						{#each c.addresses as a, i (i)}{@render fieldRow(a.label, a.lines.join(', '), a.href, true)}{/each}
 					</ul>
-				{/snippet}
-				{@render card('Contact', fieldsBody)}
-			{/if}
+				{/if}
+			{/snippet}
+			{@render card('Contact', fieldsBody)}
 
 			{#if notice}
 				<p class="rounded-[var(--radius-card)] border p-3 text-sm {notice.ok ? 'border-accent-solid bg-accent-soft text-on-accent-soft' : 'border-attention text-attention'}" role="status" data-testid="remove-notice">

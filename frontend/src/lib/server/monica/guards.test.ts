@@ -170,11 +170,13 @@ describe('allowlist', () => {
 			'DELETE /api/journal/{id}',
 			'DELETE /api/notes/{id}',
 			'POST /api/activities',
+			'POST /api/contactfields',
 			'POST /api/contacts/{id}/setTags',
 			'POST /api/contacts/{id}/unsetTag',
 			'POST /api/journal',
 			'POST /api/notes',
 			'POST /api/photos',
+			'PUT /api/contactfields/{id}',
 			'PUT /api/contacts/{id}',
 			'PUT /api/contacts/{id}', // add a birthday; correct a birthday
 			'PUT /api/contacts/{id}/avatar',
@@ -223,7 +225,8 @@ describe('allowlist', () => {
 	it('general contact updates are impossible (only contact.birthday), and so is deleting a contact', async () => {
 		const { guards, transport, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST] });
 		await expect(guards.update('contact.update', 1, {}, 'x')).rejects.toMatchObject({ reason: 'not-allowlisted' });
-		expect(() => checkWrite('PUT', '/api/contactfields/1', { readOnly: false, allowlist: WRITE_ALLOWLIST })).toThrow(/not on the write allowlist/);
+		expect(() => checkWrite('PUT', '/api/contacts/1/stayInTouch', { readOnly: false, allowlist: WRITE_ALLOWLIST })).toThrow(/not on the write allowlist/);
+		expect(() => checkWrite('DELETE', '/api/contactfields/1', { readOnly: false, allowlist: WRITE_ALLOWLIST })).toThrow(/does not delete/);
 		await expect(transport.request('DELETE' as Method, '/api/contacts/1', { deleteCapability: DELETE_CAPABILITY })).rejects.toMatchObject({ reason: 'delete-forbidden' });
 		expect(calls).toHaveLength(0);
 	});
@@ -547,6 +550,38 @@ describe('tag.rename (PUT /api/tags/{id})', () => {
 		await expect(guards.update('tag.rename', 4, { name: 'A' }, 'T0')).rejects.toBeInstanceOf(ConflictError);
 		const ro = setup({ readOnly: true, allowlist: [...WRITE_ALLOWLIST], replies: [] });
 		await expect(ro.guards.update('tag.rename', 4, { name: 'A' }, 'T1')).rejects.toMatchObject({ reason: 'read-only' });
+		expect(ro.calls).toHaveLength(0);
+	});
+});
+
+describe('phones and emails (POST /api/contactfields, PUT /api/contactfields/{id})', () => {
+	const FIELD = { data: { id: 29, object: 'contactfield', content: '+1 778-363-4155', contact_field_type: { id: 2, name: 'Phone', type: 'phone' }, labels: [{ id: 2 }], contact: { id: 13 }, updated_at: 'T1' } };
+	it('adds one field for one contact', async () => {
+		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: FIELD }] });
+		await guards.create('contactfield.create', { contact_id: 13, contact_field_type_id: 1, data: 'a@b.test' });
+		expect(calls[0]).toMatchObject({ method: 'POST', body: { contact_id: 13, contact_field_type_id: 1, data: 'a@b.test' } });
+	});
+	it('changes only the text; contact and type are sent back unchanged, labels are not sent', async () => {
+		const { guards, calls, rows } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: FIELD }, { body: FIELD }] });
+		await guards.update('contactfield.update', 29, { data: '+1 778-363-0000' }, 'T1');
+		expect(calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual(['GET /api/contactfields/29', 'PUT /api/contactfields/29']);
+		expect(calls[1].body).toEqual({ contact_id: 13, contact_field_type_id: 2, data: '+1 778-363-0000' });
+		expect(JSON.parse(rows()[0].beforeJson!).content).toBe('+1 778-363-4155');
+	});
+	it('refuses social links, bad values, other fields, conflicts and read-only; removing is impossible', async () => {
+		const social = { data: { ...FIELD.data, contact_field_type: { id: 3, name: 'Facebook', type: null } } };
+		const s1 = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: social }] });
+		await expect(s1.guards.update('contactfield.update', 29, { data: 'x' }, 'T1')).rejects.toMatchObject({ reason: 'precondition' });
+		expect(s1.calls.map((c) => c.method)).toEqual(['GET']);
+		const { guards, calls } = setup({ readOnly: false, allowlist: [...WRITE_ALLOWLIST], replies: [{ body: FIELD }] });
+		for (const data of ['', ' a', 'x'.repeat(256), 5]) await expect(guards.update('contactfield.update', 29, { data }, 'T1')).rejects.toMatchObject({ reason: 'invalid-body' });
+		await expect(guards.update('contactfield.update', 29, { data: 'a', labels: ['home'] }, 'T1')).rejects.toMatchObject({ reason: 'field-not-editable' });
+		await expect(guards.create('contactfield.create', { contact_id: 13, data: 'a' })).rejects.toMatchObject({ reason: 'invalid-body' });
+		await expect(guards.remove('contactfield.delete', 29, 'T1')).rejects.toBeInstanceOf(WriteRefusedError);
+		expect(calls).toHaveLength(0);
+		await expect(guards.update('contactfield.update', 29, { data: 'a' }, 'T0')).rejects.toBeInstanceOf(ConflictError);
+		const ro = setup({ readOnly: true, allowlist: [...WRITE_ALLOWLIST], replies: [] });
+		await expect(ro.guards.create('contactfield.create', { contact_id: 13, contact_field_type_id: 1, data: 'a' })).rejects.toMatchObject({ reason: 'read-only' });
 		expect(ro.calls).toHaveLength(0);
 	});
 });

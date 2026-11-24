@@ -81,6 +81,10 @@ export interface ContactFieldView {
 	value: string;
 	/** Safe link, or null to show as text. */
 	href: string | null;
+	/** For correcting phones and emails (Monica's contact field id and version). */
+	id?: number;
+	kind?: 'phone' | 'email' | null;
+	updatedAt?: string;
 }
 
 /**

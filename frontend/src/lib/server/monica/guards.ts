@@ -44,6 +44,7 @@ export interface WriteRule {
 	refuseIf?: (current: Json) => string | null;
 }
 
+const fieldText = (v: unknown) => (typeof v === 'string' && v.trim() === v && v.length >= 1 && v.length <= 255 ? null : 'the value must be 1-255 characters, no surrounding spaces');
 const oneTagName = (b: Json) => {
 	const t = b.tags;
 	return Array.isArray(t) && t.length === 1 && typeof t[0] === 'string' && t[0].trim().length > 0 && t[0].length <= 255 ? null : 'exactly one tag name';
@@ -102,6 +103,34 @@ export const WRITE_ALLOWLIST: readonly WriteRule[] = [
 	// unsetTag only detaches (the tag stays in Monica). unsetTags (all tags) is never allowed.
 	{ key: 'contact.tags.add', method: 'POST', path: '/api/contacts/{id}/setTags', editableFields: ['tags'], validate: oneTagName },
 	{ key: 'contact.tags.remove', method: 'POST', path: '/api/contacts/{id}/unsetTag', editableFields: ['tags'], validate: oneTagId },
+	// Phones and emails (2026-11-24): add one, or change one's text. Only phone and email
+	// fields (not social links); labels are left as they are. Removing one is not
+	// allowed (DELETE rule in CLAUDE.md).
+	{
+		key: 'contactfield.create',
+		method: 'POST',
+		path: '/api/contactfields',
+		editableFields: ['contact_id', 'contact_field_type_id', 'data'],
+		validate: (b) =>
+			Number.isInteger(b.contact_id) && (b.contact_id as number) > 0 && Number.isInteger(b.contact_field_type_id) && (b.contact_field_type_id as number) > 0 ? fieldText(b.data) : 'a contact and a field type are required'
+	},
+	{
+		key: 'contactfield.update',
+		method: 'PUT',
+		path: '/api/contactfields/{id}',
+		editableFields: ['data'],
+		// Monica's UpdateContactField needs contact and type; both are sent back unchanged.
+		toPayload: (c) => ({
+			contact_id: (c.contact as { id?: unknown } | undefined)?.id,
+			contact_field_type_id: (c.contact_field_type as { id?: unknown } | undefined)?.id,
+			data: c.content
+		}),
+		validate: (b) => fieldText(b.data),
+		refuseIf: (c) => {
+			const type = (c.contact_field_type as { type?: unknown } | undefined)?.type;
+			return type === 'phone' || type === 'email' ? null : 'only phone numbers and email addresses can be changed';
+		}
+	},
 	// Renaming a tag (2026-11-24): one write; every contact keeps the tag. Fresh GET of
 	// the tag, conflict check on its updated_at; only the name is sent.
 	{

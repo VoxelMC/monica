@@ -2,6 +2,9 @@ import { error, fail } from '@sveltejs/kit';
 import { removeEntry } from '#lib/server/remove-entry.js';
 import { savePhoto } from '#lib/server/photo-save.js';
 import { addNote } from '#lib/server/note-save.js';
+import { addField, editField } from '#lib/server/contact-fields-save.js';
+import { contactField } from '#lib/server/monica/schemas.js';
+import { z } from 'zod';
 import { changeBirthday } from '#lib/server/birthday-save.js';
 import { reminder } from '#lib/server/monica/schemas.js';
 import { openReminders } from '#lib/server/reminders.js';
@@ -52,7 +55,12 @@ export const actions: Actions = {
 	tag: async ({ params, request }) => {
 		const form = await request.formData();
 		const id = Number(params.id);
-		const [contacts, tags] = await Promise.all([listContacts(monica), listTags(monica)]);
+		let contacts, tags;
+		try {
+			[contacts, tags] = await Promise.all([listContacts(monica), listTags(monica)]);
+		} catch (err) {
+			return fail(503, { ok: false, done: [], skipped: 0, dryRun: false, message: `${loadErrorMessage(err, 'tags')} Nothing was changed.` });
+		}
 		const result =
 			form.get('mode') === 'add'
 				? await addTagsToContact(getGuards(), id, form.getAll('tag').map(String), contacts, tags) // several at once
@@ -78,6 +86,30 @@ export const actions: Actions = {
 		const form = await request.formData();
 		form.set('contactId', params.id);
 		const result = await addNote(getGuards(), form);
+		return result.ok ? result : fail(400, result);
+	},
+	// Add a phone or email (contactfield.create)
+	fieldAdd: async ({ params, request }) => {
+		const form = await request.formData();
+		let types: { id: number; type: string | null }[];
+		try {
+			types = await monica.getAll('/api/contactfieldtypes', z.looseObject({ id: z.number().int(), type: z.string().nullable() }));
+		} catch {
+			return fail(400, { ok: false, dryRun: false, message: 'Monica could not be reached. Nothing was added.' });
+		}
+		const result = await addField(getGuards(), Number(params.id), form, types);
+		return result.ok ? result : fail(400, result);
+	},
+	// Correct one of this person's phones or emails (contactfield.update)
+	fieldEdit: async ({ params, request }) => {
+		const form = await request.formData();
+		let fields: { id: number; type: string | null; content: string }[];
+		try {
+			fields = (await monica.getAll(`/api/contacts/${Number(params.id)}/contactfields`, contactField)).map((f) => ({ id: f.id, type: f.contact_field_type.type, content: f.content }));
+		} catch {
+			return fail(400, { ok: false, dryRun: false, message: 'Monica could not be reached. Nothing was changed.' });
+		}
+		const result = await editField(getGuards(), form, fields);
 		return result.ok ? result : fail(400, result);
 	},
 	// Change the profile photo (upload + set as avatar; see photo-save.ts)

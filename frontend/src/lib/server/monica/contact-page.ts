@@ -80,7 +80,10 @@ export async function loadContactPage(client: MonicaClient, id: number, today = 
 	const view = (f: (typeof fields)[number]): ContactFieldView => ({
 		label: f.contact_field_type.name,
 		value: f.content,
-		href: fieldHref(f.contact_field_type.type, f.contact_field_type.protocol, f.content)
+		href: fieldHref(f.contact_field_type.type, f.contact_field_type.protocol, f.content),
+		id: f.id,
+		kind: f.contact_field_type.type === 'phone' || f.contact_field_type.type === 'email' ? f.contact_field_type.type : null,
+		updatedAt: typeof f.updated_at === 'string' ? f.updated_at : undefined
 	});
 
 	const timeline: TimelineItem[] = [

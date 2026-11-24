@@ -469,3 +469,59 @@ test('birthday: correct an existing one; shows old and new, refuses no-op and im
 	await save.click();
 	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
 });
+
+test('contact page: add note, edit/add phone and email; read-only refuses each, nothing changes', async ({ page }) => {
+	await page.goto('/contacts/13');
+	await page.waitForLoadState('networkidle');
+	await page.getByTestId('add-note').click();
+	await expect(page.getByTestId('note-save')).toBeDisabled();
+	await page.getByTestId('note-body').fill('read-only test');
+	await page.getByTestId('note-save').click();
+	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
+
+	const phoneBefore = await page.getByTestId('field-edit').first().getAttribute('aria-label');
+	await page.getByTestId('field-edit').first().click();
+	await page.getByTestId('field-value').fill('not a phone');
+	await expect(page.getByTestId('field-form').getByRole('alert')).toContainText('digits');
+	await expect(page.getByTestId('field-save')).toBeDisabled();
+	await page.getByTestId('field-value').fill('+1 604 555 0199');
+	await page.getByTestId('field-save').click();
+	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
+	await page.reload();
+	await page.waitForLoadState('networkidle');
+	expect(await page.getByTestId('field-edit').first().getAttribute('aria-label')).toBe(phoneBefore);
+
+	await page.getByTestId('add-email').click();
+	await page.getByTestId('field-value').fill('someone@example.com');
+	await page.getByTestId('field-save').click();
+	await expect(page.getByTestId('remove-notice')).toContainText('read-only');
+});
+
+test('refresh: reloads from Monica and stays on the page', async ({ page }) => {
+	await page.goto('/contacts/13');
+	await page.waitForLoadState('networkidle');
+	const res = page.waitForResponse((r) => r.url().endsWith('/refresh') && r.status() === 204);
+	await page.getByTestId('refresh').click();
+	await res;
+	await expect(page).toHaveURL(/\/contacts\/13$/);
+	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+});
+
+test('tags page: rename and merge are offered; read-only refuses; clashes suggest merge', async ({ page }) => {
+	await page.goto('/tags');
+	await page.waitForLoadState('networkidle');
+	const row = page.getByTestId('tag-list').locator('li').first();
+	await row.getByTestId('tag-edit').click();
+	const editor = page.getByTestId('tag-editor');
+	const second = (await page.getByTestId('tag-list').locator('li').nth(1).locator('a .truncate').innerText()).trim();
+	await editor.getByLabel('Rename').fill(second);
+	await editor.getByRole('button', { name: 'Rename' }).click();
+	await expect(page.getByTestId('tags-notice')).toContainText('Merge');
+	await editor.getByLabel('Rename').fill('Renamed by e2e');
+	await editor.getByRole('button', { name: 'Rename' }).click();
+	await expect(page.getByTestId('tags-notice')).toContainText('read-only');
+	await page.getByTestId('tag-editor').getByLabel('Merge into').selectOption({ index: 1 }); // editor stays open after a refusal
+	await expect(page.getByTestId('tag-editor')).toContainText('stays as an unused tag');
+	await page.getByTestId('tag-merge').click();
+	await expect(page.getByTestId('tags-notice')).toContainText('read-only');
+});

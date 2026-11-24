@@ -325,6 +325,16 @@ Writes, in this order, each with its own guard test and owner approval of real s
 - Monica's UpdateBirthdayInformation deletes the birthday's special date and its yearly reminder, then creates new ones. orbit sends `birthdate_add_reminder: true` only if the contact has a birthday reminder now (the reminder Monica marks `delible: false`), so a correction never adds or drops one.
 - Staging 2026-11-23, Lioh (1): 3 Aug 1999 → 13 Aug 1999 (audit #287): diff showed only the birthday, its one reminder's date and `updated_at` changed; still exactly one reminder. Restored to 3 Aug (#288). Monica gives the recreated reminder a new id.
 
+**Notes, refresh, tags, phones and emails (requested 2026-11-24; built and run on staging, awaiting approval)**
+
+- Add note: "+ Add note" in a contact's Notes section; `note.create` (already approved).
+- Refresh from Monica: a button on Home, People and contact pages; `POST /refresh` clears orbit's 2-minute cache of Monica reads. Sends nothing to Monica.
+- `tag.rename`: `PUT /api/tags/{id}` `{name}` (new rule; fresh GET, conflict check on the tag's `updated_at`). A name another tag already has is refused, with a pointer to Merge.
+- Merge tag A into B: per person with A, `setTags` B (unless they have it), then `unsetTag` A; stops at the first failure. A stays as an unused tag (no DELETE).
+- `contactfield.create`: `POST /api/contactfields` `{contact_id, contact_field_type_id, data}`; `contactfield.update`: `PUT /api/contactfields/{id}`, only `data` changes, contact and type sent back unchanged, labels not sent (Monica keeps them). Only phone and email fields (refused for social links). The server also checks the field belongs to the contact on the page. Removing a phone or email is not possible (DELETE rule).
+- Actions now answer "Monica is busy" instead of a 500 when reading Monica fails before a write.
+- Staging 2026-11-24 (audit #357-#371): note added to and removed from Josh (13); Josh's phone changed and changed back; an email added to Josh (left on staging: orbit cannot remove it); "Discord" renamed and back; a temporary tag "zz orbit test" put on Josh and Daniel (26), merged into "Discord", then Discord taken off both. Daniel identical before and after; "zz orbit test" remains as an unused tag.
+
 **Removing hangouts, notes and journal entries (owner decision 2026-11-23)**
 
 - `DELETE /api/activities/{id}`, `/api/notes/{id}`, `/api/journal/{id}`; never contacts or anything else. The transport refuses any other DELETE path and any DELETE not issued by `guards.remove`.
