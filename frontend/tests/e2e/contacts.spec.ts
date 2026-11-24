@@ -525,3 +525,19 @@ test('tags page: rename and merge are offered; read-only refuses; clashes sugges
 	await page.getByTestId('tag-merge').click();
 	await expect(page.getByTestId('tags-notice')).toContainText('read-only');
 });
+
+test('tab icon follows the theme chosen in Settings', async ({ page, context }) => {
+	await page.goto('/settings');
+	await page.waitForLoadState('networkidle');
+	const icon = () => page.locator('link[rel="icon"]').getAttribute('href');
+	await page.getByRole('radiogroup', { name: 'Mode' }).getByRole('radio', { name: 'Light' }).click();
+	await page.getByTestId('light-themes').getByRole('button', { name: /Paper/ }).click();
+	await expect.poll(async () => decodeURIComponent((await icon())!)).toContain('#2f6f5e'); // Paper's green
+	const before = await icon();
+	await page.getByTestId('light-themes').getByRole('button', { name: /Ayu Light/ }).click();
+	await expect.poll(icon).not.toBe(before);
+	expect(decodeURIComponent((await icon())!)).not.toContain('prefers-color-scheme'); // light mode: light theme only
+	await page.getByRole('radiogroup', { name: 'Mode' }).getByRole('radio', { name: 'Match system' }).click();
+	await expect.poll(async () => decodeURIComponent((await icon())!)).toContain('prefers-color-scheme:dark');
+	await context.clearCookies(); // leave the default theme for other tests
+});

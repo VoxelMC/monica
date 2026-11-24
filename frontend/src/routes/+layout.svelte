@@ -1,12 +1,14 @@
 <script lang="ts">
 	import '../app.css';
-	import favicon from '#lib/assets/favicon.svg';
+	import { faviconHref } from '#lib/logo.js';
 	import Logo from '#lib/components/Logo.svelte';
 	import { navigating, page } from '$app/state';
 	import { themeCss } from '#lib/themes.js';
 	import type { LayoutProps } from './$types';
 
-	let { children }: LayoutProps = $props();
+	let { children, data }: LayoutProps = $props();
+	// Tab icon in the colours of the theme chosen in Settings (updates when it changes)
+	const favicon = $derived(faviconHref(data.prefs));
 
 	// Only live sections are links; the rest arrive in later slices.
 	const tabs = [
