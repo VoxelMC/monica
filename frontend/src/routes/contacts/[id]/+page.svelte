@@ -149,6 +149,9 @@
 		</div>
 	</header>
 	<ContactTags tags={c.tags} allTags={data.allTags} ondone={(r) => (notice = r)} />
+	{#if data.groups.length}
+		<p class="mb-2 text-sm" data-testid="contact-groups"><span class="text-muted">Groups:</span> {#each data.groups as g, i (g.id)}{i ? ', ' : ''}<a href="/groups/{g.id}" class="text-accent hover:underline">{g.name}</a>{/each}</p>
+	{/if}
 	<div class="mb-3"><CatchupTarget days={data.catchup.days} source={data.catchup.source} lastContacted={data.catchup.lastContacted} ondone={(r) => (notice = r)} /></div>
 	<div class="mb-3 flex gap-2">
 		<a href="/log?people={c.id}" class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[var(--radius-input)] border border-accent-solid font-medium text-accent">

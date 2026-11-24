@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 // Extension DB. Slice 0 only needs the audit log; the slice 5 tables come later.
 
@@ -51,3 +51,21 @@ export const contactMeta = sqliteTable('contact_meta', {
 	catchupIntervalDays: integer('catchup_interval_days'), // null = no orbit target
 	updatedAt: text('updated_at').notNull()
 });
+
+// Friend groups (slice 5, 2026-11-24): orbit's own data; members are Monica contact ids.
+export const groups = sqliteTable('groups', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	name: text('name').notNull(),
+	createdAt: text('created_at').notNull()
+});
+export const groupMembers = sqliteTable(
+	'group_members',
+	{
+		groupId: integer('group_id')
+			.notNull()
+			.references(() => groups.id, { onDelete: 'cascade' }),
+		monicaContactId: integer('monica_contact_id').notNull(),
+		addedAt: text('added_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.groupId, t.monicaContactId] })]
+);

@@ -3,6 +3,7 @@ import { removeEntry } from '#lib/server/remove-entry.js';
 import { savePhoto } from '#lib/server/photo-save.js';
 import { addNote } from '#lib/server/note-save.js';
 import { catchupTarget, setCatchupTarget } from '#lib/server/catchup.js';
+import { groupsFor } from '#lib/server/groups.js';
 import { addGiftIdea, setGiftStatus } from '#lib/server/gift-save.js';
 import { gift } from '#lib/server/monica/schemas.js';
 import { addField, editField } from '#lib/server/contact-fields-save.js';
@@ -38,6 +39,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 			mentionedIn,
 			allTags,
 			catchup: await catchupFor(contact.id),
+			groups: groupsFor(getDb(), contact.id).map((g) => ({ id: g.id, name: g.name })),
 			timedReminders: openReminders(getDb(), contact.id),
 			ntfyConfigured: settings.ntfyConfigured,
 			monicaLink: settings.publicMonicaUrl ? `${settings.publicMonicaUrl}/people/${encodeURIComponent(contact.hashId)}` : null
