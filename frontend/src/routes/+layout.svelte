@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '#lib/assets/favicon.svg';
+	import Logo from '#lib/components/Logo.svelte';
 	import { navigating, page } from '$app/state';
 	import { themeCss } from '#lib/themes.js';
 	import type { LayoutProps } from './$types';
@@ -27,7 +28,9 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="icon" href={favicon} type="image/svg+xml" />
+	<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+	<link rel="manifest" href="/manifest.webmanifest" />
 	<meta name="theme-color" content="#2f6f5e" />
 	<!-- All colour themes; the active one is chosen by attributes on <html> -->
 	{@html `<style id="orbit-themes">${themeCss()}</style>`}
@@ -43,7 +46,7 @@
 <div class="lg:flex">
 	<!-- Desktop sidebar -->
 	<nav class="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-1 border-r border-line p-4 lg:flex" aria-label="Main">
-		<a href="/" class="mb-4 block text-center text-xl font-semibold tracking-tight text-accent">orbit</a>
+		<a href="/" class="mb-4 flex justify-center text-xl font-semibold tracking-tight text-fg" aria-label="orbit, home"><Logo size={26} /></a>
 		<a href="/log" class="mb-3 flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-input)] bg-accent-solid px-3 font-medium text-on-accent">
 			<span aria-hidden="true" class="text-lg leading-none">+</span> Log
 		</a>
