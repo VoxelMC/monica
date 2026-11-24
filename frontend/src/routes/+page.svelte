@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Avatar from '#lib/components/Avatar.svelte';
 	import ReminderList from '#lib/components/ReminderList.svelte';
+	import RefreshButton from '#lib/components/RefreshButton.svelte';
 	import { fullDate, relativeDate } from '#lib/contacts.js';
 	import { catchUpSoon, recentlyChanged, upcomingBirthdays } from '#lib/dashboard.js';
 	import type { PageProps } from './$types';
@@ -46,7 +47,10 @@
 <div class="mx-auto max-w-5xl px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-6">
 	<div class="flex items-center justify-between pt-2 pb-3">
 		<h1 class="text-2xl font-semibold">Home</h1>
-		<a href="/log" class="inline-flex min-h-11 items-center rounded-[var(--radius-input)] px-3 text-accent lg:hidden">+ Log</a>
+		<div class="flex items-center">
+			<RefreshButton />
+			<a href="/log" class="inline-flex min-h-11 items-center rounded-[var(--radius-input)] px-3 text-accent lg:hidden">+ Log</a>
+		</div>
 	</div>
 
 	<div class="grid gap-3 lg:grid-cols-2">

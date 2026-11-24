@@ -5,6 +5,8 @@
 	import RemindMe from '#lib/components/RemindMe.svelte';
 	import ContactTags from '#lib/components/ContactTags.svelte';
 	import BirthdayEdit from '#lib/components/BirthdayEdit.svelte';
+	import NoteAdd from '#lib/components/NoteAdd.svelte';
+	import RefreshButton from '#lib/components/RefreshButton.svelte';
 	import ReminderList from '#lib/components/ReminderList.svelte';
 	import type { TimelineItem } from '#lib/contact.js';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -113,6 +115,8 @@
 			<svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
 			People
 		</a>
+		<span class="ml-auto"></span>
+		<RefreshButton />
 		{#if data.monicaLink}
 			<a href={data.monicaLink} target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center rounded-[var(--radius-input)] px-2 text-sm text-muted hover:bg-surface-2">
 				Open in Monica ↗
@@ -251,6 +255,7 @@
 
 			<!-- Notes: their own section, newest first, long ones folded -->
 			{#snippet notesBody()}
+				<NoteAdd contactId={c.id} ondone={(r) => (notice = r)} />
 				{#if notes.length}
 					<ol class="flex flex-col divide-y divide-line" data-testid="notes">
 						{#each showAllNotes ? notes : notes.slice(0, NOTES_SHOWN) as n (n.id)}

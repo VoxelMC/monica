@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RefreshButton from '#lib/components/RefreshButton.svelte';
 	import { enhance } from '$app/forms';
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
@@ -222,6 +223,7 @@
 			<div class="mb-2.5 flex items-center justify-between gap-2">
 				<h1 class="text-2xl font-semibold">People <span class="text-base font-normal text-muted tabular" data-testid="count">{shown.length === data.contacts.length ? data.contacts.length : `${shown.length} of ${data.contacts.length}`}</span></h1>
 				<div class="flex h-9 items-center gap-2">
+					<RefreshButton compact />
 					<div class="flex h-9 items-center gap-0.5 rounded-[var(--radius-input)] border border-control p-0.5" role="group" aria-label="View">
 						{#each [['cards', 'Cards', 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'], ['lines', 'Lines', 'M3 6h18M3 12h18M3 18h18']] as [v, label, icon] (v)}
 							<button

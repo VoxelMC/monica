@@ -1,6 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { removeEntry } from '#lib/server/remove-entry.js';
 import { savePhoto } from '#lib/server/photo-save.js';
+import { addNote } from '#lib/server/note-save.js';
 import { changeBirthday } from '#lib/server/birthday-save.js';
 import { reminder } from '#lib/server/monica/schemas.js';
 import { openReminders } from '#lib/server/reminders.js';
@@ -70,6 +71,13 @@ export const actions: Actions = {
 			return fail(400, { ok: false, dryRun: false, message: 'Monica could not be reached. Nothing was changed.' });
 		}
 		const result = await changeBirthday(getGuards(), form, hadReminder);
+		return result.ok ? result : fail(400, result);
+	},
+	// Add a note (POST /api/notes, same approved write as hangout notes)
+	note: async ({ params, request }) => {
+		const form = await request.formData();
+		form.set('contactId', params.id);
+		const result = await addNote(getGuards(), form);
 		return result.ok ? result : fail(400, result);
 	},
 	// Change the profile photo (upload + set as avatar; see photo-save.ts)
