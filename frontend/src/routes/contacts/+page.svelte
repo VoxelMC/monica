@@ -19,12 +19,13 @@
 	import Tag from '#lib/components/Tag.svelte';
 	import { type PeopleView } from '#lib/prefs.js';
 	import { updatePrefs } from '#lib/prefs-client.js';
-	import { tagHue } from '#lib/themes.js';
+	import { useTagHue } from '#lib/tag-colours.js';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
+	const tagHue = useTagHue();
 
 	// State starts from the URL so search/filter/sort survive reloads and work without JS (GET form).
 	const initial = parseTagFilter(page.url.searchParams);

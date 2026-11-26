@@ -418,6 +418,8 @@ Batch rules: show the exact list of contacts and the change before sending; one 
 
 **Done when:** these work without writing anything new into Monica's database (gifts use Monica's own gift records), and the extension DB is in the nightly backup.
 
+- **Tag colours** (orbit, `tag_colours`, migration 0007; 2026-11-26). Tags page → Edit → Colour: Auto (from the name, as before) or one of the theme's six tag colours, so they stay contrast-checked in every theme. Shared by every tag chip and list through the root layout. A rename in orbit keeps the colour; a rename in Monica's own UI drops back to Auto. Monica is not touched.
+
 ### Backlog — features found while using Monica
 
 - **Merge duplicate contacts.** Monica 4.1.2 has no merge button, so duplicates (e.g. from a DAVx⁵ sync) must be fixed by hand and deleted. Build a merge screen: pick two contacts side by side, choose which value wins per field, move notes, activities, reminders, gifts and tags onto the kept contact, then delete the other. Uses fetch-merge-send for the kept contact, logs both records in the audit log, and needs explicit confirmation — this is the one place the app is allowed to delete, and only after everything has been moved.
@@ -436,6 +438,7 @@ Features Monica lacks are stored in a separate SQLite file owned by the new app,
 | `souvenir_list` | `trip_id`, `monica_contact_id`, `note`, `done` | Who to bring something back for (built) |
 | `audit_log` | `id`, `at`, `method`, `endpoint`, `monica_id`, `before_json`, `after_json`, `dry_run`, `result` | Every write sent (or not sent) to Monica |
 | `journal_mentions` | `journal_entry_id`, `monica_contact_id`, `name`, `created_at` | Who a journal entry mentions (built) |
+| `tag_colours` | `name_key` (PK, folded tag name), `hue` (1-6), `updated_at` | Tag colour picked on the Tags page (built 2026-11-26) |
 | `reminders` | `monica_contact_id`, `contact_name`, `note`, `due_at` (UTC), `time_zone`, `sent_at`, `done_at`, `attempts`, `last_attempt_at`, `last_error` | Timed reminders sent through ntfy (built) |
 
 **Rules**

@@ -102,3 +102,12 @@ export const avatarThumbs = sqliteTable('avatar_thumbs', {
 	bytes: blob('bytes', { mode: 'buffer' }).notNull(),
 	createdAt: text('created_at').notNull()
 });
+
+// Tag colours (2026-11-26): the owner's choice of one of the theme's six tag colours
+// per tag (orbit's own data; Monica tags have no colour). Keyed by the tag name
+// folded with tagColourKey(); no row = the automatic colour from the name.
+export const tagColours = sqliteTable('tag_colours', {
+	nameKey: text('name_key').primaryKey(),
+	hue: integer('hue').notNull(), // 1-6
+	updatedAt: text('updated_at').notNull()
+});
