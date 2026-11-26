@@ -5,11 +5,11 @@
 	import CacheSync from '#lib/components/CacheSync.svelte';
 	import { navigating, page } from '$app/state';
 	import { themeCss } from '#lib/themes.js';
-	import { provideTagHues } from '#lib/tag-colours.js';
+	import { provideTagColours } from '#lib/tag-colours.js';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
-	provideTagHues(() => data.tagHues);
+	provideTagColours(() => data.tagColours);
 	// Tab icon in the colours of the theme chosen in Settings (updates when it changes)
 	const favicon = $derived(faviconHref(data.prefs));
 

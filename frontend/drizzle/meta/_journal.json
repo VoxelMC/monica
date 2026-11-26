@@ -57,6 +57,13 @@
       "when": 1795704644737,
       "tag": "0007_melodic_fallen_one",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795721664012,
+      "tag": "0008_curly_nemesis",
+      "breakpoints": true
     }
   ]
 }

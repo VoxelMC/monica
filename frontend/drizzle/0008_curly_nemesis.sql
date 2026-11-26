@@ -1,0 +1,1 @@
+ALTER TABLE `tag_colours` ADD `color` text;

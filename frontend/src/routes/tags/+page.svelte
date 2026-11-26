@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { tagCounts } from '#lib/contacts.js';
-	import { useTagHue } from '#lib/tag-colours.js';
+	import { useTagPaint } from '#lib/tag-colours.js';
 	import { tagColourKey } from '#lib/tag-colours.js';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	const tagHue = useTagHue();
+	const tagPaint = useTagPaint();
 	const counts = $derived(tagCounts(data.contacts, data.tagNames));
 	const untagged = $derived(data.contacts.filter((c) => !c.tags.length).length);
 	const max = $derived(Math.max(1, ...counts.map((t) => t.count)));
@@ -52,15 +52,17 @@
 	<ul class="flex flex-col gap-2" data-testid="tag-list">
 		{#each counts as t (t.name)}
 			{@const tag = byName.get(t.name)}
-			{@const chosen = data.tagHues[tagColourKey(t.name)] ?? 0}
+			{@const choice = data.tagColours[tagColourKey(t.name)]}
+			{@const chosen = choice?.color ? -1 : (choice?.hue ?? 0)}
+			{@const paint = tagPaint(t.name)}
 			<li>
 				<div class="flex gap-2">
 					<a
 						href="/contacts?tag={encodeURIComponent(t.name)}"
 						class="relative flex min-h-12 min-w-0 flex-1 items-center justify-between overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface px-4"
 					>
-						<span class="absolute inset-y-0 left-0" style:background-color="var(--tag-{tagHue(t.name)}-bg)" style:width="{(t.count / max) * 100}%" aria-hidden="true"></span>
-						<span class="relative flex min-w-0 items-center gap-2 font-semibold"><span class="size-2.5 shrink-0 rounded-[2px]" style:background-color="var(--hue-{tagHue(t.name)})" aria-hidden="true"></span><span class="truncate">{t.name}</span></span>
+						<span class="absolute inset-y-0 left-0" style:background-color={paint.bg} style:width="{(t.count / max) * 100}%" aria-hidden="true"></span>
+						<span class="relative flex min-w-0 items-center gap-2 font-semibold"><span class="size-2.5 shrink-0 rounded-[2px]" style:background-color={paint.dot} aria-hidden="true"></span><span class="truncate">{t.name}</span></span>
 						<span class="relative shrink-0 text-sm text-muted tabular-nums">{t.count === 0 ? 'unused' : `${t.count} ${t.count === 1 ? 'person' : 'people'}`}</span>
 					</a>
 					{#if tag}
@@ -69,31 +71,51 @@
 				</div>
 				{#if tag && editing === t.name}
 					<div class="mt-2 flex flex-col gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-3" data-testid="tag-editor">
-						<form method="POST" action="?/colour" use:enhance={submit}>
-							<input type="hidden" name="name" value={t.name} />
+						<div>
 							<p class="mb-1 text-sm text-muted" id="colour-{tag.id}">Colour</p>
 							<div class="flex flex-wrap gap-2" role="group" aria-labelledby="colour-{tag.id}" data-testid="tag-colours">
-								<button
-									name="hue"
-									value="0"
-									disabled={busy}
-									aria-pressed={chosen === 0}
-									class="min-h-11 rounded-[var(--radius-input)] border px-3 text-sm {chosen === 0 ? 'border-fg font-semibold' : 'border-line text-muted hover:text-fg'}"
-								>Auto</button>
-								{#each [1, 2, 3, 4, 5, 6] as h (h)}
+								<form method="POST" action="?/colour" use:enhance={submit} class="contents">
+									<input type="hidden" name="name" value={t.name} />
 									<button
 										name="hue"
-										value={h}
+										value="0"
 										disabled={busy}
-										aria-pressed={chosen === h}
-										aria-label="Colour {h}"
-										class="flex size-11 items-center justify-center rounded-[var(--radius-input)] border-2 {chosen === h ? 'border-fg' : 'border-transparent'}"
-										style:background-color="var(--tag-{h}-bg)"
-									><span class="size-4 rounded-[2px]" style:background-color="var(--hue-{h})"></span></button>
-								{/each}
+										aria-pressed={chosen === 0}
+										class="min-h-11 rounded-[var(--radius-input)] border px-3 text-sm {chosen === 0 ? 'border-fg font-semibold' : 'border-line text-muted hover:text-fg'}"
+									>Auto</button>
+									{#each [1, 2, 3, 4, 5, 6] as h (h)}
+										<button
+											name="hue"
+											value={h}
+											disabled={busy}
+											aria-pressed={chosen === h}
+											aria-label="Theme colour {h}"
+											class="flex size-11 items-center justify-center rounded-[var(--radius-input)] border-2 {chosen === h ? 'border-fg' : 'border-transparent'}"
+											style:background-color="var(--tag-{h}-bg)"
+										><span class="size-4 rounded-[2px]" style:background-color="var(--hue-{h})"></span></button>
+									{/each}
+								</form>
+								<!-- Any colour: the browser's own colour picker; saves when it closes -->
+								<form method="POST" action="?/colour" use:enhance={submit} class="contents">
+									<input type="hidden" name="name" value={t.name} />
+									<label
+										class="flex min-h-11 cursor-pointer items-center gap-2 rounded-[var(--radius-input)] border-2 px-2.5 text-sm {chosen === -1 ? 'border-fg font-semibold' : 'border-line text-muted hover:text-fg'}"
+										data-testid="tag-custom-colour"
+									>
+										<input
+											type="color"
+											name="color"
+											value={choice?.color ?? '#7c6cf0'}
+											disabled={busy}
+											class="size-6 cursor-pointer rounded-[2px] border-0 bg-transparent p-0"
+											onchange={(e) => e.currentTarget.form?.requestSubmit()}
+										/>
+										Custom
+									</label>
+								</form>
 							</div>
-							<p class="mt-1 text-xs text-muted">Colours follow your theme. Saved in orbit only; Monica has no tag colours.</p>
-						</form>
+							<p class="mt-1 text-xs text-muted">Theme colours adjust to light and dark themes; a custom colour is tinted to stay readable. Saved in orbit only; Monica has no tag colours.</p>
+						</div>
 						<form method="POST" action="?/rename" use:enhance={submit}>
 							<input type="hidden" name="tagId" value={tag.id} />
 							<input type="hidden" name="updatedAt" value={tag.updatedAt ?? ''} />

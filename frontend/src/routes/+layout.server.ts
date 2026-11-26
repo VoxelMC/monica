@@ -1,5 +1,5 @@
 import { getDb } from '#lib/server/monica/index.js';
-import { getTagHues } from '#lib/server/tag-colours.js';
+import { getTagColours } from '#lib/server/tag-colours.js';
 import type { LayoutServerLoad } from './$types';
 
 // Re-run (cheaply: it only reads the cookie) whenever a setting changes, so pages
@@ -7,6 +7,6 @@ import type { LayoutServerLoad } from './$types';
 export const load: LayoutServerLoad = ({ locals, depends }) => {
 	depends('orbit:prefs');
 	// serverNow: where this browser starts asking /fresh whether cached data changed.
-	// tagHues: the tag colours chosen on the Tags page (orbit's DB; a quick local read).
-	return { prefs: locals.prefs, serverNow: Date.now(), tagHues: getTagHues(getDb()) };
+	// tagColours: the tag colours chosen on the Tags page (orbit's DB; a quick local read).
+	return { prefs: locals.prefs, serverNow: Date.now(), tagColours: getTagColours(getDb()) };
 };

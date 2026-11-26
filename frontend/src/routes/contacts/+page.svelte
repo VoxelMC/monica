@@ -19,13 +19,13 @@
 	import Tag from '#lib/components/Tag.svelte';
 	import { type PeopleView } from '#lib/prefs.js';
 	import { updatePrefs } from '#lib/prefs-client.js';
-	import { useTagHue } from '#lib/tag-colours.js';
+	import { useTagPaint } from '#lib/tag-colours.js';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	const tagHue = useTagHue();
+	const tagPaint = useTagPaint();
 
 	// State starts from the URL so search/filter/sort survive reloads and work without JS (GET form).
 	const initial = parseTagFilter(page.url.searchParams);
@@ -191,7 +191,7 @@
 
 <svelte:head><title>People · orbit</title></svelte:head>
 
-{#snippet tagRow(label: string, count: number, on: boolean, onclick: () => void, hue?: number)}
+{#snippet tagRow(label: string, count: number, on: boolean, onclick: () => void, dot?: string)}
 	<li>
 		<button
 			type="button"
@@ -199,7 +199,7 @@
 			class="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-input)] px-2 text-left text-sm {on ? 'bg-accent-soft font-semibold text-on-accent-soft' : 'hover:bg-surface-2'}"
 			{onclick}
 		>
-			{#if hue}<span class="size-2 shrink-0 rounded-[2px]" style:background-color="var(--hue-{hue})" aria-hidden="true"></span>{:else}<span class="size-2 shrink-0 rounded-[2px] border border-control" aria-hidden="true"></span>{/if}
+			{#if dot}<span class="size-2 shrink-0 rounded-[2px]" style:background-color={dot} aria-hidden="true"></span>{:else}<span class="size-2 shrink-0 rounded-[2px] border border-control" aria-hidden="true"></span>{/if}
 			<span class="min-w-0 flex-1 truncate">{label}</span>
 			<span class="text-xs text-muted tabular">{count}</span>
 		</button>
@@ -214,7 +214,7 @@
 		<ul class="flex flex-col gap-px">
 			{@render tagRow('Everyone', data.contacts.length, !tags.length && !untagged, () => ((tags = []), (untagged = false)))}
 			{#each everyTag as t (t)}
-				{@render tagRow(t, tagCountsMap[t] ?? 0, tags.includes(t), () => toggleTag(t), tagHue(t))}
+				{@render tagRow(t, tagCountsMap[t] ?? 0, tags.includes(t), () => toggleTag(t), tagPaint(t).dot)}
 			{/each}
 			{@render tagRow('Untagged', untaggedCount, untagged, () => ((untagged = !untagged), (tags = [])))}
 		</ul>
@@ -284,7 +284,7 @@
 						<button type="button" class="{chip} {untagged ? chipOn : chipOff} border-dashed" aria-pressed={untagged} onclick={() => ((untagged = !untagged), (tags = []))}>Untagged</button>
 						{#each chipOrder as t (t)}
 							<button type="button" class="{chip} {tags.includes(t) ? chipOn : chipOff}" aria-pressed={tags.includes(t)} onclick={() => toggleTag(t)}>
-								<span class="size-1.5 rounded-[1px]" style:background-color={tags.includes(t) ? 'currentColor' : `var(--hue-${tagHue(t)})`} aria-hidden="true"></span>{t}
+								<span class="size-1.5 rounded-[1px]" style:background-color={tags.includes(t) ? 'currentColor' : tagPaint(t).dot} aria-hidden="true"></span>{t}
 							</button>
 						{/each}
 					</div>
@@ -430,7 +430,7 @@
 			<div class="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Tags">
 				{#each tagSheet === 'add' ? everyTag : tagsInSelection as t (t)}
 					<button type="button" aria-pressed={fold2(tagName) === fold2(t)} class="{chip} {fold2(tagName) === fold2(t) ? chipOn : chipOff}" onclick={() => (tagName = t)}>
-						<span class="size-1.5 rounded-[1px]" style:background-color={fold2(tagName) === fold2(t) ? 'currentColor' : `var(--hue-${tagHue(t)})`} aria-hidden="true"></span>{t}
+						<span class="size-1.5 rounded-[1px]" style:background-color={fold2(tagName) === fold2(t) ? 'currentColor' : tagPaint(t).dot} aria-hidden="true"></span>{t}
 					</button>
 				{/each}
 			</div>

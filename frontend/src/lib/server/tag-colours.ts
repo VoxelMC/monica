@@ -3,26 +3,30 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { OrbitDb } from './db';
 import { tagColours } from './db/schema';
-import { tagColourKey, type TagHues } from '../tag-colours.js';
+import { HEX, tagColourKey, type TagChoices } from '../tag-colours.js';
 
-export function getTagHues(db: OrbitDb): TagHues {
-	const out: TagHues = {};
-	for (const r of db.select().from(tagColours).all()) out[r.nameKey] = r.hue;
+export function getTagColours(db: OrbitDb): TagChoices {
+	const out: TagChoices = {};
+	for (const r of db.select().from(tagColours).all()) out[r.nameKey] = { hue: r.hue, color: r.color ?? null };
 	return out;
 }
 
-/** Set (hue 1-6) or clear (hue 0 = automatic) one tag's colour. */
+/** Set a theme colour (hue 1-6), a custom colour (color '#rrggbb'), or clear (hue 0, no color = automatic). */
 export function setTagColour(db: OrbitDb, form: FormData): { ok: boolean; message: string } {
-	const parsed = z.object({ name: z.string().trim().min(1).max(255), hue: z.coerce.number().int().min(0).max(6) }).safeParse({ name: form.get('name'), hue: form.get('hue') });
+	const parsed = z
+		.object({ name: z.string().trim().min(1).max(255), hue: z.coerce.number().int().min(0).max(6), color: z.string().trim().toLowerCase().regex(HEX).optional() })
+		.safeParse({ name: form.get('name'), hue: form.get('hue') ?? '0', color: form.get('color') || undefined });
 	if (!parsed.success) return { ok: false, message: 'The form could not be read. Reload the page and try again.' };
-	const { name, hue } = parsed.data;
+	const { name, color } = parsed.data;
+	const hue = color ? 0 : parsed.data.hue;
 	const key = tagColourKey(name);
-	if (hue === 0) {
+	if (hue === 0 && !color) {
 		db.delete(tagColours).where(eq(tagColours.nameKey, key)).run();
 		return { ok: true, message: `“${name}” uses its automatic colour again.` };
 	}
 	const updatedAt = new Date().toISOString();
-	db.insert(tagColours).values({ nameKey: key, hue, updatedAt }).onConflictDoUpdate({ target: tagColours.nameKey, set: { hue, updatedAt } }).run();
+	const set = { hue, color: color ?? null, updatedAt };
+	db.insert(tagColours).values({ nameKey: key, ...set }).onConflictDoUpdate({ target: tagColours.nameKey, set }).run();
 	return { ok: true, message: `Colour saved for “${name}”.` };
 }
 
@@ -35,6 +39,7 @@ export function moveTagColour(db: OrbitDb, from: string, to: string): void {
 		const row = tx.select().from(tagColours).where(eq(tagColours.nameKey, a)).get();
 		if (!row) return;
 		tx.delete(tagColours).where(eq(tagColours.nameKey, a)).run();
-		tx.insert(tagColours).values({ nameKey: b, hue: row.hue, updatedAt: new Date().toISOString() }).onConflictDoUpdate({ target: tagColours.nameKey, set: { hue: row.hue } }).run();
+		const set = { hue: row.hue, color: row.color, updatedAt: new Date().toISOString() };
+		tx.insert(tagColours).values({ nameKey: b, ...set }).onConflictDoUpdate({ target: tagColours.nameKey, set }).run();
 	});
 }

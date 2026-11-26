@@ -108,6 +108,7 @@ export const avatarThumbs = sqliteTable('avatar_thumbs', {
 // folded with tagColourKey(); no row = the automatic colour from the name.
 export const tagColours = sqliteTable('tag_colours', {
 	nameKey: text('name_key').primaryKey(),
-	hue: integer('hue').notNull(), // 1-6
+	hue: integer('hue').notNull(), // 1-6, or 0 when `color` is set
+	color: text('color'), // custom colour '#rrggbb' (2026-11-26), else null
 	updatedAt: text('updated_at').notNull()
 });

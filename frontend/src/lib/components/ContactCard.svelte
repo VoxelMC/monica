@@ -2,7 +2,7 @@
 	import { fullDate, relativeDate, type ContactCard } from '#lib/contacts.js';
 	import Avatar from './Avatar.svelte';
 	import Tag from './Tag.svelte';
-	import { useTagHue } from '#lib/tag-colours.js';
+	import { useTagPaint } from '#lib/tag-colours.js';
 
 	interface Props {
 		contact: ContactCard;
@@ -14,7 +14,7 @@
 		ontoggle?: (id: number, shiftKey: boolean) => void;
 	}
 	let { contact: c, view = 'cards', selecting = false, selected = false, ontoggle }: Props = $props();
-	const tagHue = useTagHue();
+	const tagPaint = useTagPaint();
 
 	const last = $derived(c.lastContacted ? `Last contact ${relativeDate(c.lastContacted)}` : 'No catch-ups logged');
 	const base = $derived(
@@ -79,7 +79,7 @@
 					aria-label="Tags: {c.tags.join(', ')}"
 					title={c.tags.join(', ')}
 				>
-					{#each c.tags.slice(0, 5) as t (t)}<span role="listitem" class="size-2 rounded-full" style:background-color="var(--hue-{tagHue(t)})" title={t}></span>{/each}
+					{#each c.tags.slice(0, 5) as t (t)}<span role="listitem" class="size-2 rounded-full" style:background-color={tagPaint(t).dot} title={t}></span>{/each}
 					{#if c.tags.length > 5}<span class="text-[0.625rem] leading-none text-muted">+{c.tags.length - 5}</span>{/if}
 				</span>
 			{/if}
