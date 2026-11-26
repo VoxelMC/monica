@@ -700,8 +700,14 @@ class ImportVCard extends BaseService
         $contactData = $this->importGender($contactData, $entry);
         $contactData = $this->importBirthday($contactData, $entry);
 
-        if ($contact !== null && $contactData !== $original) {
-            $contact = app(UpdateContact::class)->execute($contactData);
+        // orbit patch (2026-11-26): upstream created a NEW contact when the card was
+        // for an existing contact but its name, gender and birthday were unchanged
+        // (e.g. the phone re-sent a card after a photo or phone edit), so every such
+        // sync made a duplicate person. Keep the existing contact instead.
+        if ($contact !== null) {
+            if ($contactData !== $original) {
+                $contact = app(UpdateContact::class)->execute($contactData);
+            }
         } else {
             $contact = app(CreateContact::class)->execute($contactData);
         }

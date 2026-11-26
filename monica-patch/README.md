@@ -29,6 +29,12 @@ Only for cards a phone uploads into the main address book (`UpdateVCard` passes
    Nothing is changed or removed. The person's own card is then re-exported, so the
    phone gets the result on its next sync.
 3. Cards for a person's own URI (normal edits) behave exactly as before.
+4. Re-sending a person's own card without a change to name, gender or birthday
+   (e.g. after editing only a phone or photo) no longer creates a new person.
+   Upstream's `importGeneralInformation` called `CreateContact` whenever the card
+   left those fields unchanged, even for an existing contact. Found on staging
+   2026-11-26 (contacts 47 and 48) after item 1-2 passed. This affects every
+   import, not just phone uploads.
 
 Known limit: two different people with exactly the same name are treated as one
 when the phone sends a new card for the second.

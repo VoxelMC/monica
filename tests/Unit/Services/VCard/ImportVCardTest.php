@@ -1468,4 +1468,23 @@ END:VCARD', Reader::OPTION_FORGIVING + Reader::OPTION_IGNORE_INVALID_LINES);
 
         $this->assertNotEquals($contact->id, $result['contact_id']);
     }
+
+    /** @test */
+    public function orbit_resending_an_unchanged_card_keeps_the_same_contact()
+    {
+        [$user, $contact] = $this->orbitExistingKayla();
+        $card = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:".$contact->uuid."\r\nN:Preocanin;Kayla;;;\r\nFN:Kayla Preocanin\r\nTEL;TYPE=CELL:604 555 0101\r\nEND:VCARD\r\n";
+
+        $result = app(ImportVCard::class)->execute([
+            'account_id' => $user->account_id,
+            'user_id' => $user->id,
+            'contact_id' => $contact->id,
+            'entry' => $card,
+            'behaviour' => ImportVCard::BEHAVIOUR_REPLACE,
+            'match_new_cards' => true,
+        ]);
+
+        $this->assertEquals($contact->id, $result['contact_id']);
+        $this->assertEquals(1, Contact::where('account_id', $user->account_id)->where('last_name', 'Preocanin')->count());
+    }
 }
