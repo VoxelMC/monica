@@ -13,7 +13,7 @@
 	let { id, name, initials, color, hasPhoto, photoKey = null, size = 'size-12', text = 'text-sm' }: Props = $props();
 	let failed = $state(false);
 	// Same corner radius as cards and buttons; big photos get a slightly larger one.
-	const radius = $derived(/size-(1[6-9]|[2-9]\d)\b/.test(size) ? 'rounded-[var(--radius-photo-lg)]' : 'rounded-[var(--radius-photo)]');
+	const radius = $derived(/size-(1[6-9]|[2-9]\d)\b|\bw-full\b/.test(size) ? 'rounded-[var(--radius-photo-lg)]' : 'rounded-[var(--radius-photo)]');
 
 	// Dark initials on light colours, white on dark ones (WCAG relative luminance).
 	function textColor(hex: string): string {
@@ -30,12 +30,12 @@
 
 {#if hasPhoto && !failed}
 	<img
-		src={photoKey ? `/avatars/${id}?v=${encodeURIComponent(photoKey)}` : `/avatars/${id}`}
+		src={photoKey ? `/avatars/${id}?v=${encodeURIComponent(photoKey)}&s=480` : `/avatars/${id}`}
 		alt=""
 		loading="lazy"
 		decoding="async"
-		width="80"
-		height="80"
+		width="160"
+		height="160"
 		class="{size} {radius} shrink-0 bg-surface-2 object-cover"
 		onerror={() => (failed = true)}
 	/>

@@ -11,7 +11,7 @@ export const FONTS = [
 
 export type FontId = (typeof FONTS)[number]['id'];
 export type ThemeMode = 'system' | 'light' | 'dark';
-export type PeopleView = 'cards' | 'lines';
+export type PeopleView = 'cards' | 'lines' | 'photos';
 
 export interface Prefs {
 	mode: ThemeMode;
@@ -41,7 +41,7 @@ export function parsePrefs(raw: string | undefined | null): Prefs {
 		light: oneOf(o.light, LIGHT_THEMES.map((t) => t.id), DEFAULT_PREFS.light),
 		dark: oneOf(o.dark, DARK_THEMES.map((t) => t.id), DEFAULT_PREFS.dark),
 		font: oneOf(o.font, FONTS.map((f) => f.id), DEFAULT_PREFS.font),
-		peopleView: oneOf(o.peopleView, ['cards', 'lines'] as const, DEFAULT_PREFS.peopleView)
+		peopleView: oneOf(o.peopleView, ['cards', 'lines', 'photos'] as const, DEFAULT_PREFS.peopleView)
 	};
 }
 

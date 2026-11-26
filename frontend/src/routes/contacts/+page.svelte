@@ -235,7 +235,7 @@
 				<div class="flex h-9 items-center gap-2">
 					<RefreshButton compact />
 					<div class="flex h-9 items-center gap-0.5 rounded-[var(--radius-input)] border border-control p-0.5" role="group" aria-label="View">
-						{#each [['cards', 'Cards', 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'], ['lines', 'Lines', 'M3 6h18M3 12h18M3 18h18']] as [v, label, icon] (v)}
+						{#each [['cards', 'Cards', 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'], ['lines', 'Lines', 'M3 6h18M3 12h18M3 18h18'], ['photos', 'Photos', 'M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1M3 16l5-5 4 4 3-3 6 6M15.5 8.5h.01']] as [v, label, icon] (v)}
 							<button
 								type="button"
 								aria-pressed={view === v}
@@ -325,7 +325,7 @@
 							{#if g.letter}
 								<h2 id="letter-{g.letter}" class="scroll-mt-40 pt-3 pb-1 text-sm font-semibold text-muted lg:scroll-mt-32">{g.letter}</h2>
 							{/if}
-							<ul class={view === 'cards' ? 'grid gap-2 sm:grid-cols-2 xl:grid-cols-3' : 'border-y border-line'}>
+							<ul class={view === 'cards' ? 'grid gap-2 sm:grid-cols-2 xl:grid-cols-3' : view === 'photos' ? 'grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' : 'border-y border-line'}>
 								{#each g.contacts as c (c.id)}
 									<ContactCard contact={c} {view} {selecting} selected={selected.has(c.id)} ontoggle={toggle} />
 								{/each}

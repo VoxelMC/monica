@@ -7,8 +7,10 @@ import sharp from 'sharp';
 import type { OrbitDb } from './db';
 import { avatarThumbs } from './db/schema';
 
-/** Biggest avatar on screen is 80 CSS px; 240 px stays sharp on 3x phone screens. */
-export const THUMB_PX = 240;
+/** Biggest avatar on screen is ~160 CSS px (People → Photos view); 480 px stays sharp on 3x phone screens. */
+export const THUMB_PX = 480;
+/** Stored under the photo key plus the size, so a size change remakes old thumbnails once. */
+const storedKey = (photoKey: string) => `${photoKey}@${THUMB_PX}`;
 
 export interface Image {
 	mime: string;
@@ -27,12 +29,12 @@ export async function makeThumb(bytes: Uint8Array): Promise<Image> {
 
 export function storedThumb(db: OrbitDb, contactId: number, photoKey: string): Image | null {
 	const row = db.select().from(avatarThumbs).where(eq(avatarThumbs.monicaContactId, contactId)).get();
-	if (!row || row.photoKey !== photoKey) return null;
+	if (!row || row.photoKey !== storedKey(photoKey)) return null;
 	return { mime: row.mime, bytes: new Uint8Array(row.bytes) };
 }
 
 export function storeThumb(db: OrbitDb, contactId: number, photoKey: string, img: Image): void {
-	const values = { monicaContactId: contactId, photoKey, mime: img.mime, bytes: Buffer.from(img.bytes), createdAt: new Date().toISOString() };
+	const values = { monicaContactId: contactId, photoKey: storedKey(photoKey), mime: img.mime, bytes: Buffer.from(img.bytes), createdAt: new Date().toISOString() };
 	db.insert(avatarThumbs).values(values).onConflictDoUpdate({ target: avatarThumbs.monicaContactId, set: values }).run();
 }
 

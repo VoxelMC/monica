@@ -5,8 +5,8 @@
 
 	interface Props {
 		contact: ContactCard;
-		/** 'cards': boxed tiles; 'lines': one row per person with hairline dividers. */
-		view?: 'cards' | 'lines';
+		/** 'cards': boxed tiles; 'lines': one row per person with hairline dividers; 'photos': big photo, name, small tags. */
+		view?: 'cards' | 'lines' | 'photos';
 		/** In select mode the whole item toggles selection instead of opening the contact. */
 		selecting?: boolean;
 		selected?: boolean;
@@ -16,13 +16,19 @@
 
 	const last = $derived(c.lastContacted ? `Last contact ${relativeDate(c.lastContacted)}` : 'No catch-ups logged');
 	const base = $derived(
-		view === 'cards'
+		view === 'photos'
+			? 'relative flex w-full flex-col gap-1.5 rounded-[var(--radius-card)] p-1 text-left transition-colors duration-150'
+			: view === 'cards'
 			? 'flex h-full w-full items-start gap-3 rounded-[var(--radius-card)] border bg-surface p-3 text-left transition-colors duration-150'
 			: 'grid w-full items-center gap-x-3 px-2 py-2 text-left transition-colors duration-150 ' +
 					'grid-cols-[auto_minmax(0,1fr)_auto] lg:grid-cols-[auto_minmax(9rem,1.1fr)_minmax(0,1.4fr)_7.5rem_9rem]'
 	);
 	const stateCls = $derived(
-		view === 'cards'
+		view === 'photos'
+			? selected
+				? 'bg-accent-soft ring-2 ring-accent-solid'
+				: 'hover:bg-surface-2'
+			: view === 'cards'
 			? selected
 				? 'border-accent-solid ring-1 ring-accent-solid'
 				: 'border-line hover:border-control'
@@ -59,7 +65,15 @@
 {/snippet}
 
 {#snippet body()}
-	{#if view === 'cards'}
+	{#if view === 'photos'}
+		{#if selecting}<span class="absolute top-2.5 left-2.5 z-[1] rounded-[var(--radius-chip)] bg-surface">{@render check()}</span>{/if}
+		<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="aspect-square w-full h-auto" text="text-3xl" />
+		<span class="min-w-0 px-0.5">
+			<span class="block truncate text-sm font-semibold" data-name>{c.name}</span>
+			{#if c.nickname}<span class="block truncate text-xs text-muted italic">{c.nickname}</span>{/if}
+			<span class="mt-1 block">{@render tags(2)}</span>
+		</span>
+	{:else if view === 'cards'}
 		{@render check()}
 		<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="size-11" />
 		<span class="min-w-0 flex-1">
