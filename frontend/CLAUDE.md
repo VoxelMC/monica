@@ -15,12 +15,18 @@ The owner's data must never be lost, overwritten or corrupted.
 
 ## Hard rules
 - Work only inside frontend/. Never edit Monica's PHP, migrations, database/ or config.
+  One exception (owner decision 2026-11-26): the documented duplicate-contact patch in monica-patch/
+  (app/Services/VCard/ImportVCard.php, app/Jobs/Dav/UpdateVCard.php). Changing it, or patching anything
+  else in Monica, needs the owner's explicit approval first. The owner builds and deploys the image;
+  staging first, then production.
 - Never connect to the production Monica. Use MONICA_URL from .env.development (staging).
 - Never run SQL against Monica's database. Use the REST API only.
 - DELETE requests to Monica only for hangouts (activities), notes and journal entries, never contacts or anything else
   (owner decision 2026-11-23). Each removal: a confirmation screen in the UI, the full record saved to the audit log
-  first, conflict check, and the DELETE path must be on the allowlist. The merge feature in the backlog stays a
-  separate decision with explicit owner confirmation per merge.
+  first, conflict check, and the DELETE path must be on the allowlist.
+- Exception (owner decision 2026-11-26): DELETE of a contact only as the last step of merging a duplicate into
+  another person, after the owner confirmed that one merge on screen, and only when everything orbit can move has
+  been moved. orbit refuses the merge when the copy has data it cannot move. Never any other contact DELETE.
 - All Monica writes go through lib/server/monica/guards.ts:
   read-only switch, allowlist, fetch-merge-send, conflict check, audit log.
 - Never add a generic proxy that forwards arbitrary requests to Monica.

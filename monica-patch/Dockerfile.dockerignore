@@ -1,0 +1,4 @@
+# Send only the two patched files to the build (BuildKit reads this next to the Dockerfile)
+*
+!app/Services/VCard/ImportVCard.php
+!app/Jobs/Dav/UpdateVCard.php

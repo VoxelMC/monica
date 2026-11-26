@@ -99,6 +99,23 @@ class ImportVCard extends BaseService
     protected $addressBook;
 
     /**
+     * orbit patch: true when the entry was matched to an existing contact by UID,
+     * email or name rather than by its own card URI.
+     *
+     * @var bool
+     */
+    protected $matchedOtherCard = false;
+
+    /**
+     * orbit patch: a card uploaded by a phone into the main address book. Only
+     * then are new cards matched to existing contacts by name and merged in
+     * add-only (see addToExistingContact). File imports behave as upstream.
+     *
+     * @var bool
+     */
+    protected $matchNewCards = false;
+
+    /**
      * Get the validation rules that apply to the service.
      *
      *
@@ -124,6 +141,8 @@ class ImportVCard extends BaseService
             ],
             'addressBookName' => 'nullable|string|exists:addressbooks,name',
             'etag' => 'nullable|string',
+            // orbit patch: set by phone sync (CardDAV upload) only
+            'match_new_cards' => 'nullable|boolean',
         ];
     }
 
@@ -158,6 +177,8 @@ class ImportVCard extends BaseService
                 'name' => $addressBookName,
             ])->firstOrFail();
         }
+
+        $this->matchNewCards = (bool) Arr::get($data, 'match_new_cards', false) && ! $addressBookName;
 
         return $this->process($data);
     }
@@ -429,6 +450,7 @@ class ImportVCard extends BaseService
     private function getExistingContact(VCard $entry, $contact_id = null)
     {
         $contact = null;
+        $this->matchedOtherCard = false;
         if (! is_null($contact_id)) {
             $contact = Contact::where([
                 'account_id' => $this->accountId,
@@ -436,6 +458,10 @@ class ImportVCard extends BaseService
             ])
                 ->find($contact_id);
         }
+
+        // orbit patch: found below = the card is not this contact's own card (a new
+        // card from the phone for someone already in Monica)
+        $this->matchedOtherCard = ! $contact && $this->matchNewCards;
 
         if (! $contact) {
             $contact = $this->existingUuid($entry);
@@ -445,12 +471,14 @@ class ImportVCard extends BaseService
             $contact = $this->existingContactWithEmail($entry);
         }
 
-        if (! $contact) {
+        if (! $contact && $this->matchNewCards) {
             $contact = $this->existingContactWithName($entry);
         }
 
         if ($contact) {
             $contact->timestamps = false;
+        } else {
+            $this->matchedOtherCard = false;
         }
 
         return $contact;
@@ -489,6 +517,90 @@ class ImportVCard extends BaseService
     }
 
     /**
+     * orbit patch (2026-11-26): the entry is a different card (new UID) for a
+     * contact Monica already has, e.g. a phone that saved a photo edit as a new
+     * linked contact. The normal import would make the contact look exactly like
+     * this card, removing every tag, email and phone the card lacks. Instead only
+     * add: its photo (the user just set it), emails and phones the contact does
+     * not have yet, and its categories as tags. Nothing is changed or removed.
+     *
+     * @param  Contact  $contact
+     * @param  VCard  $entry
+     * @return Contact
+     */
+    private function addToExistingContact(Contact $contact, VCard $entry): Contact
+    {
+        $this->importPhoto($contact, $entry);
+
+        $emailTypeId = $this->getContactFieldTypeId(ContactFieldType::EMAIL);
+        if ($emailTypeId && ! is_null($entry->EMAIL)) {
+            $have = $contact->contactFields()->email()->get()
+                ->map(fn ($f) => mb_strtolower(trim((string) $f->data)))->all();
+            foreach ($entry->EMAIL as $email) {
+                $data = $this->formatValue((string) $email);
+                if ($data && $this->isValidEmail($data) && ! in_array(mb_strtolower($data), $have, true)) {
+                    app(CreateContactField::class)->execute([
+                        'account_id' => $contact->account_id,
+                        'contact_id' => $contact->id,
+                        'contact_field_type_id' => $emailTypeId,
+                        'data' => $data,
+                        'labels' => preg_split('/,/', (string) $email['TYPE']),
+                    ]);
+                    $have[] = mb_strtolower($data);
+                }
+            }
+        }
+
+        $phoneTypeId = $this->getContactFieldTypeId(ContactFieldType::PHONE);
+        if ($phoneTypeId && ! is_null($entry->TEL)) {
+            $digits = fn ($v) => preg_replace('/\D+/', '', (string) $v);
+            // compare on the last 9 digits so "+1 604…" and "604…" are the same number
+            $tail = fn ($v) => substr($digits($v), -9);
+            $have = $contact->contactFields()->phone()->get()
+                ->map(fn ($f) => $tail($f->data))->all();
+            $countryISO = VCardHelper::getCountryISOFromSabreVCard($entry);
+            foreach ($entry->TEL as $tel) {
+                $raw = (string) $tel;
+                if ($digits($raw) === '' || in_array($tail($raw), $have, true)) {
+                    continue;
+                }
+                $data = LocaleHelper::formatTelephoneNumberByISO($raw, $countryISO, Str::startsWith($raw, '+') ? \libphonenumber\PhoneNumberFormat::INTERNATIONAL : \libphonenumber\PhoneNumberFormat::NATIONAL);
+                app(CreateContactField::class)->execute([
+                    'account_id' => $contact->account_id,
+                    'contact_id' => $contact->id,
+                    'contact_field_type_id' => $phoneTypeId,
+                    'data' => $this->formatValue($data),
+                    'labels' => preg_split('/,/', (string) $tel['TYPE']),
+                ]);
+                $have[] = $tail($raw);
+            }
+        }
+
+        if (! is_null($entry->CATEGORIES)) {
+            $tags = $contact->tags()->pluck('name')->all();
+            foreach (preg_split('/,/', (string) $entry->CATEGORIES) as $category) {
+                $name = trim((string) $category);
+                if ($name !== '' && ! in_array($name, $tags, true)) {
+                    app(AssociateTag::class)->execute([
+                        'account_id' => $contact->account_id,
+                        'contact_id' => $contact->id,
+                        'name' => $name,
+                    ]);
+                    $tags[] = $name;
+                }
+            }
+        }
+
+        // Re-export this contact's own card on the next sync (it may have a new
+        // photo or fields now), so the phone's copy of it updates too.
+        $contact = $contact->fresh();
+        $contact->vcard = null;
+        $contact->touch();
+
+        return $contact;
+    }
+
+    /**
      * Search with names fields.
      *
      * @param  VCard  $entry
@@ -496,8 +608,14 @@ class ImportVCard extends BaseService
      */
     private function existingContactWithName(VCard $entry)
     {
-        $contact = [];
-        $this->importNames($contact, $entry);
+        // orbit patch (2026-11-26): upstream called importNames() without keeping its
+        // result, so this searched for a contact with no name and never matched.
+        // A phone card with a new UID (e.g. Samsung saving a photo edit as a new
+        // linked contact) then became a duplicate person.
+        $contact = $this->importNames([], $entry);
+        if (empty(Arr::get($contact, 'first_name'))) {
+            return null;
+        }
 
         return Contact::where([
             'account_id' => $this->accountId,
@@ -505,7 +623,10 @@ class ImportVCard extends BaseService
             'middle_name' => Arr::get($contact, 'middle_name'),
             'last_name' => Arr::get($contact, 'last_name'),
             'address_book_id' => $this->addressBook ? $this->addressBook->id : null,
-        ])->first();
+        ])
+            ->where('is_partial', false)
+            ->orderBy('id')
+            ->first();
     }
 
     /**
@@ -536,6 +657,10 @@ class ImportVCard extends BaseService
      */
     private function importEntry(?Contact $contact, VCard $entry, string $vcard, ?string $etag): Contact
     {
+        if ($contact && $this->matchedOtherCard) {
+            return $this->addToExistingContact($contact, $entry);
+        }
+
         $contact = $this->importGeneralInformation($contact, $entry);
 
         $this->importPhoto($contact, $entry);
@@ -811,7 +936,7 @@ class ImportVCard extends BaseService
                 $contact->avatar_gravatar_url = (string) $entry->PHOTO;
             } elseif (! Str::startsWith((string) $entry->PHOTO, 'https://')
                 && ! Str::startsWith((string) $entry->PHOTO, 'http://')
-                && ($contact->avatar_source != 'photo' || empty($contact->avatar_photo_id))) {
+                && ($contact->avatar_source != 'photo' || empty($contact->avatar_photo_id) || $this->matchedOtherCard)) {
                 // Import photo image
                 // Skipping in case a photo avatar is already set
 

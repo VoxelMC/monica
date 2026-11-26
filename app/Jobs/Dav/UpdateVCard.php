@@ -104,6 +104,8 @@ class UpdateVCard implements ShouldQueue
                     'etag' => $this->contact->etag,
                     'behaviour' => ImportVCard::BEHAVIOUR_REPLACE,
                     'addressBookName' => $addressBookId === $backend->backendUri() ? null : $addressBookId,
+                    // orbit patch: match a new card to an existing contact by name, add-only
+                    'match_new_cards' => true,
                 ]);
 
             if (! Arr::has($result, 'error')) {

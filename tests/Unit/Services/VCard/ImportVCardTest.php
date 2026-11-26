@@ -1379,4 +1379,93 @@ END:VCARD', Reader::OPTION_FORGIVING + Reader::OPTION_IGNORE_INVALID_LINES);
         ]);
         $this->assertEquals('31fdc242-c974-436e-98de-6b21624d6e34', $contact->uuid);
     }
+
+    /**
+     * orbit patch: a phone card with a new UID for someone already in Monica is
+     * merged in add-only instead of becoming a duplicate.
+     *
+     * @return array
+     */
+    private function orbitExistingKayla(): array
+    {
+        $user = factory(User::class)->create([]);
+        $emailType = factory(ContactFieldType::class)->create(['account_id' => $user->account_id, 'type' => 'email']);
+        $phoneType = factory(ContactFieldType::class)->create(['account_id' => $user->account_id, 'type' => 'phone']);
+        $contact = factory(Contact::class)->create([
+            'account_id' => $user->account_id,
+            'first_name' => 'Kayla',
+            'middle_name' => null,
+            'last_name' => 'Preocanin',
+            'is_partial' => false,
+            'address_book_id' => null,
+        ]);
+        $tag = factory(Tag::class)->create(['account_id' => $user->account_id, 'name' => 'Van', 'name_slug' => 'van']);
+        $contact->tags()->syncWithoutDetaching([$tag->id => ['account_id' => $user->account_id]]);
+        factory(ContactField::class)->create([
+            'account_id' => $user->account_id,
+            'contact_id' => $contact->id,
+            'contact_field_type_id' => $phoneType->id,
+            'data' => '604 555 0101',
+        ]);
+
+        return [$user, $contact, $emailType, $phoneType];
+    }
+
+    /** @test */
+    public function orbit_phone_card_with_new_uid_merges_into_the_same_name_add_only()
+    {
+        [$user, $contact] = $this->orbitExistingKayla();
+        $card = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:".Str::uuid()."\r\nN:Preocanin;Kayla;;;\r\nFN:Kayla Preocanin\r\nEMAIL;TYPE=HOME:kayla@example.test\r\nTEL;TYPE=CELL:+1 604-555-0101\r\nCATEGORIES:Friends\r\nEND:VCARD\r\n";
+
+        $result = app(ImportVCard::class)->execute([
+            'account_id' => $user->account_id,
+            'user_id' => $user->id,
+            'contact_id' => null,
+            'entry' => $card,
+            'behaviour' => ImportVCard::BEHAVIOUR_REPLACE,
+            'match_new_cards' => true,
+        ]);
+
+        $this->assertEquals($contact->id, $result['contact_id']);
+        $this->assertEquals(1, Contact::where('account_id', $user->account_id)->where('last_name', 'Preocanin')->count());
+        $contact->refresh();
+        // kept: the tag and the phone (same number, other format: not added twice)
+        $this->assertEqualsCanonicalizing(['Van', 'Friends'], $contact->tags()->pluck('name')->all());
+        $this->assertEquals(1, $contact->contactFields()->phone()->count());
+        // added: the new email
+        $this->assertEquals(['kayla@example.test'], $contact->contactFields()->email()->pluck('data')->all());
+    }
+
+    /** @test */
+    public function orbit_name_matching_is_off_for_file_imports()
+    {
+        [$user] = $this->orbitExistingKayla();
+        $card = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:".Str::uuid()."\r\nN:Preocanin;Kayla;;;\r\nFN:Kayla Preocanin\r\nEND:VCARD\r\n";
+
+        app(ImportVCard::class)->execute([
+            'account_id' => $user->account_id,
+            'user_id' => $user->id,
+            'entry' => $card,
+            'behaviour' => ImportVCard::BEHAVIOUR_REPLACE,
+        ]);
+
+        $this->assertEquals(2, Contact::where('account_id', $user->account_id)->where('last_name', 'Preocanin')->count());
+    }
+
+    /** @test */
+    public function orbit_a_different_name_is_still_a_new_contact()
+    {
+        [$user, $contact] = $this->orbitExistingKayla();
+        $card = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:".Str::uuid()."\r\nN:Preocanin;Kay;;;\r\nFN:Kay Preocanin\r\nEND:VCARD\r\n";
+
+        $result = app(ImportVCard::class)->execute([
+            'account_id' => $user->account_id,
+            'user_id' => $user->id,
+            'entry' => $card,
+            'behaviour' => ImportVCard::BEHAVIOUR_REPLACE,
+            'match_new_cards' => true,
+        ]);
+
+        $this->assertNotEquals($contact->id, $result['contact_id']);
+    }
 }
