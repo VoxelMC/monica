@@ -69,21 +69,24 @@
 {#snippet body()}
 	{#if view === 'photos'}
 		{#if selecting}<span class="absolute top-2.5 left-2.5 z-[1] rounded-[var(--radius-chip)] bg-surface">{@render check()}</span>{/if}
-		<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="aspect-square w-full h-auto" text="text-3xl" />
-		<span class="min-w-0 px-0.5">
-			<span class="block truncate text-sm font-semibold" data-name>{c.name}</span>
-			<!-- Second line: nickname, with the tags as coloured dots on the right (tag name on hover) -->
-			{#if c.nickname || c.tags.length}
-				<span class="flex min-h-4 items-center gap-1.5">
-					<span class="min-w-0 flex-1 truncate text-xs text-muted italic">{c.nickname ?? ''}</span>
-					{#if c.tags.length}
-						<span class="flex shrink-0 items-center gap-1" role="list" aria-label="Tags: {c.tags.join(', ')}" title={c.tags.join(', ')}>
-							{#each c.tags.slice(0, 5) as t (t)}<span role="listitem" class="size-2 rounded-full" style:background-color="var(--hue-{tagHue(t)})" title={t}></span>{/each}
-							{#if c.tags.length > 5}<span class="text-[0.625rem] leading-none text-muted">+{c.tags.length - 5}</span>{/if}
-						</span>
-					{/if}
+		<!-- Tags as coloured dots in the photo's corner, on a small chip so they show on any photo (tag name on hover) -->
+		<span class="relative block">
+			<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="aspect-square w-full h-auto" text="text-3xl" />
+			{#if c.tags.length}
+				<span
+					class="absolute right-1.5 bottom-1.5 flex items-center gap-1 rounded-full bg-surface/90 px-1.5 py-1 shadow-sm"
+					role="list"
+					aria-label="Tags: {c.tags.join(', ')}"
+					title={c.tags.join(', ')}
+				>
+					{#each c.tags.slice(0, 5) as t (t)}<span role="listitem" class="size-2 rounded-full" style:background-color="var(--hue-{tagHue(t)})" title={t}></span>{/each}
+					{#if c.tags.length > 5}<span class="text-[0.625rem] leading-none text-muted">+{c.tags.length - 5}</span>{/if}
 				</span>
 			{/if}
+		</span>
+		<span class="min-w-0 px-0.5">
+			<span class="block truncate text-sm font-semibold" data-name>{c.name}</span>
+			{#if c.nickname}<span class="block truncate text-xs text-muted italic">{c.nickname}</span>{/if}
 		</span>
 	{:else if view === 'cards'}
 		{@render check()}
