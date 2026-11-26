@@ -1,5 +1,5 @@
 // Monica REST client: auth header, pagination by page number, rate limiting,
-// 429/Retry-After handling, short-lived GET cache and Zod validation.
+// 429/Retry-After handling, GET cache (stale-while-revalidate) and Zod validation.
 //
 // Two layers:
 //  - createTransport(): raw HTTP. Refuses DELETE always and non-GET while read-only.
@@ -195,20 +195,83 @@ export interface MonicaClient {
 	getAll<T extends z.ZodType>(path: string, item: T, query?: Query): Promise<z.infer<T>[]>;
 	/** Drop cached GET responses (call after a write). */
 	invalidate(): void;
+	/**
+	 * Wait (up to timeoutMs) for background re-checks to finish. `changed` is true when
+	 * any re-check finished after `since` (server ms) with data different from what
+	 * was cached, i.e. a page built from the cache may be out of date.
+	 */
+	settle(since: number, timeoutMs?: number): Promise<{ now: number; busy: boolean; changed: boolean }>;
 }
 
 export interface ClientOptions {
+	/** Answers younger than this are used as they are. */
 	cacheTtlMs?: number;
+	/**
+	 * Answers older than cacheTtlMs but younger than this are used straight away
+	 * while orbit asks Monica again in the background (stale-while-revalidate).
+	 * 0 (default) turns that off: an expired answer is fetched again before use.
+	 */
+	staleMs?: number;
+	/** Most answers kept; the oldest go first. */
+	maxEntries?: number;
 	now?: () => number;
 	/** Safety cap on pages walked by getAll. */
 	maxPages?: number;
+	/** Told when a background re-check fails (the cached answer is kept). */
+	onRevalidateError?: (path: string, err: unknown) => void;
+}
+
+interface Entry {
+	at: number;
+	value: Promise<unknown>;
+	/** Set once the request has succeeded; only settled answers are served stale. */
+	raw?: string;
+	revalidating?: boolean;
 }
 
 export function createMonicaClient(transport: Transport, opts: ClientOptions = {}): MonicaClient {
 	const ttl = opts.cacheTtlMs ?? 30_000;
+	const staleMs = Math.max(opts.staleMs ?? 0, ttl);
+	const maxEntries = opts.maxEntries ?? 2000;
 	const now = opts.now ?? Date.now;
 	const maxPages = opts.maxPages ?? 1000;
-	const cache = new Map<string, { at: number; value: Promise<unknown> }>();
+	const cache = new Map<string, Entry>();
+	const inFlight = new Set<Promise<void>>();
+	let changedAt = 0;
+	let generation = 0; // bumped by invalidate(); late re-checks from before it are dropped
+
+	function remember(key: string, value: Promise<unknown>): Entry {
+		const entry: Entry = { at: now(), value };
+		cache.delete(key); // re-insert so Map order is oldest-first
+		cache.set(key, entry);
+		while (cache.size > maxEntries) cache.delete(cache.keys().next().value as string);
+		value.then(
+			(v) => (entry.raw = JSON.stringify(v)),
+			() => cache.get(key) === entry && cache.delete(key)
+		);
+		return entry;
+	}
+
+	function revalidate(key: string, entry: Entry, path: string, query?: Query) {
+		entry.revalidating = true;
+		const gen = generation;
+		const job = transport
+			.request('GET', path, { query })
+			.then(
+				(v) => {
+					if (gen !== generation || cache.get(key) !== entry) return;
+					const raw = JSON.stringify(v);
+					if (raw !== entry.raw) changedAt = now();
+					cache.set(key, { at: now(), value: Promise.resolve(v), raw });
+				},
+				(err) => {
+					entry.revalidating = false; // keep the old answer; try again next time
+					opts.onRevalidateError?.(path, err);
+				}
+			)
+			.finally(() => inFlight.delete(job));
+		inFlight.add(job);
+	}
 
 	function cachedGet(path: string, query?: Query): Promise<unknown> {
 		const key = path + '?' + new URLSearchParams(
@@ -217,14 +280,17 @@ export function createMonicaClient(transport: Transport, opts: ClientOptions = {
 				.map(([k, v]) => [k, String(v)] as [string, string])
 				.sort(([a], [b]) => a.localeCompare(b))
 		).toString();
+		if (ttl <= 0) return transport.request('GET', path, { query });
 		const hit = cache.get(key);
-		if (ttl > 0 && hit && now() - hit.at < ttl) return hit.value;
-		const value = transport.request('GET', path, { query });
-		if (ttl > 0) {
-			cache.set(key, { at: now(), value });
-			value.catch(() => cache.delete(key));
+		if (hit) {
+			const age = now() - hit.at;
+			if (age < ttl) return hit.value;
+			if (age < staleMs && hit.raw !== undefined) {
+				if (!hit.revalidating) revalidate(key, hit, path, query);
+				return hit.value;
+			}
 		}
-		return value;
+		return remember(key, transport.request('GET', path, { query })).value;
 	}
 
 	return {
@@ -253,6 +319,21 @@ export function createMonicaClient(transport: Transport, opts: ClientOptions = {
 
 		invalidate() {
 			cache.clear();
+			generation++;
+		},
+
+		async settle(since, timeoutMs = 20_000) {
+			const busy = inFlight.size > 0;
+			const deadline = Date.now() + timeoutMs;
+			while (inFlight.size > 0 && Date.now() < deadline) {
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				await Promise.race([
+					Promise.allSettled([...inFlight]),
+					new Promise((r) => (timer = setTimeout(r, Math.max(0, deadline - Date.now()))))
+				]);
+				clearTimeout(timer);
+			}
+			return { now: now(), busy, changed: changedAt > since };
 		}
 	};
 }

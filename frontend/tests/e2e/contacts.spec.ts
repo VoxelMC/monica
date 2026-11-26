@@ -607,3 +607,24 @@ test('groups and trips: create, use, delete (orbit only)', async ({ page }, info
 	await page.waitForURL(/\/groups$/);
 	await expect(page.getByText(name)).toHaveCount(0);
 });
+
+test('cache sync: shows "Checking Monica…" while a re-check runs and reloads the data when it changed', async ({ page }) => {
+	let answer = { busy: false, changed: false };
+	await page.route('**/fresh?*', async (route) => {
+		await new Promise((r) => setTimeout(r, 1200)); // a slow background re-check
+		await route.fulfill({ json: { now: Date.now(), ...answer } });
+	});
+	await page.goto('/contacts');
+	const pill = page.getByTestId('cache-sync');
+	await expect(pill).toHaveText(/Checking Monica/);
+	await expect(pill).toBeHidden({ timeout: 5000 });
+
+	// Next page: the re-check says something changed, so the page data is reloaded
+	answer = { busy: true, changed: true };
+	const reloaded = page.waitForRequest((r) => r.url().includes('__data.json'));
+	await page.getByRole('link', { name: 'Home' }).first().click();
+	await expect(pill).toHaveText(/Checking Monica/);
+	await reloaded;
+	await expect(pill).toHaveText(/Updated/);
+	await expect(pill).toBeHidden({ timeout: 5000 });
+});

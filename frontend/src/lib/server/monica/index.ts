@@ -20,7 +20,24 @@ const transport = createTransport({
 	requestsPerMinute: ORBIT_MONICA_RPM
 });
 
-export const monica: MonicaClient = createMonicaClient(transport, { cacheTtlMs: 120_000 });
+// Answers under a minute old are used as they are. Older ones (up to a day) are
+// shown straight away while orbit asks Monica again in the background; the page
+// then refreshes itself if anything changed (see /fresh and CacheSync.svelte).
+// A write clears everything, so the page after a save always waits for Monica.
+export const monica: MonicaClient = createMonicaClient(transport, {
+	cacheTtlMs: 60_000,
+	staleMs: 24 * 60 * 60_000,
+	onRevalidateError: (path, err) => console.warn(`background re-check of ${path} failed:`, err instanceof Error ? err.message : err)
+});
+
+/** Fill the cache when the server starts, so the first visit after a restart is quick. */
+export async function warmCache(): Promise<void> {
+	const [{ listContacts, listOpenTasks, listTagNames }, { loadDiary }] = await Promise.all([import('./contacts'), import('./diary')]);
+	const t = Date.now();
+	const results = await Promise.allSettled([listContacts(monica), listOpenTasks(monica), listTagNames(monica), loadDiary(monica)]);
+	const failed = results.filter((r) => r.status === 'rejected').length;
+	console.log(`cache warm-up: ${results.length - failed}/${results.length} lists loaded in ${Date.now() - t} ms`);
+}
 
 export const settings = {
 	monicaUrl: MONICA_URL,

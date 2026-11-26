@@ -325,10 +325,18 @@ Writes, in this order, each with its own guard test and owner approval of real s
 - Monica's UpdateBirthdayInformation deletes the birthday's special date and its yearly reminder, then creates new ones. orbit sends `birthdate_add_reminder: true` only if the contact has a birthday reminder now (the reminder Monica marks `delible: false`), so a correction never adds or drops one.
 - Staging 2026-11-23, Lioh (1): 3 Aug 1999 → 13 Aug 1999 (audit #287): diff showed only the birthday, its one reminder's date and `updated_at` changed; still exactly one reminder. Restored to 3 Aug (#288). Monica gives the recreated reminder a new id.
 
+**Faster pages: stale-while-revalidate cache (requested 2026-11-26; branch orbit-swr-cache, no Monica writes)**
+
+- Monica GET answers under 60 s old are used as is. Older ones (up to 24 h) are used at once while the same GET is sent again in the background (one at a time per URL). A failed re-check keeps the old answer and logs a warning.
+- After every page load (and when the app comes back after a minute hidden) the browser calls `GET /fresh?since=<server ms>`. It waits up to 20 s for running re-checks and answers `{now, busy, changed}`; if any re-check returned different JSON since `since`, the browser calls `refreshAll()` (served from the fresh cache). A pill ("Checking Monica…", then "Updated") shows when this takes over 250 ms.
+- Any write still clears the whole cache, so the page after a save always waits for Monica; re-checks started before the write are dropped.
+- On startup orbit loads the contact list, tasks, tags and diary in the background. The cache is in memory: up to 2000 answers, lost on restart.
+- `/fresh` sends nothing to Monica itself and is not a proxy.
+
 **Notes, refresh, tags, phones and emails (requested 2026-11-24; built and run on staging, awaiting approval)**
 
 - Add note: "+ Add note" in a contact's Notes section; `note.create` (already approved).
-- Refresh from Monica: a button on Home, People and contact pages; `POST /refresh` clears orbit's 2-minute cache of Monica reads. Sends nothing to Monica.
+- Refresh from Monica: a button on Home, People and contact pages; `POST /refresh` clears orbit's cache of Monica reads (so the next load waits for Monica). Sends nothing to Monica.
 - `tag.rename`: `PUT /api/tags/{id}` `{name}` (new rule; fresh GET, conflict check on the tag's `updated_at`). A name another tag already has is refused, with a pointer to Merge.
 - Merge tag A into B: per person with A, `setTags` B (unless they have it), then `unsetTag` A; stops at the first failure. A stays as an unused tag (no DELETE).
 - `contactfield.create`: `POST /api/contactfields` `{contact_id, contact_field_type_id, data}`; `contactfield.update`: `PUT /api/contactfields/{id}`, only `data` changes, contact and type sent back unchanged, labels not sent (Monica keeps them). Only phone and email fields (refused for social links). The server also checks the field belongs to the contact on the page. Removing a phone or email is not possible (DELETE rule).

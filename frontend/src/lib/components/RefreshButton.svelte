@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Reload this page with fresh data from Monica (skips orbit's 2-minute cache).
+	// Reload this page with fresh data from Monica (skips orbit's cache and waits for Monica).
 	import { refreshAll } from '$app/navigation';
 	let { compact = false }: { compact?: boolean } = $props();
 	let busy = $state(false);

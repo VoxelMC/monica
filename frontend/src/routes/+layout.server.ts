@@ -4,5 +4,6 @@ import type { LayoutServerLoad } from './$types';
 // built later in the same visit show the current choice, not the one from first load.
 export const load: LayoutServerLoad = ({ locals, depends }) => {
 	depends('orbit:prefs');
-	return { prefs: locals.prefs };
+	// serverNow: where this browser starts asking /fresh whether cached data changed.
+	return { prefs: locals.prefs, serverNow: Date.now() };
 };

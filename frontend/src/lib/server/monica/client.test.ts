@@ -181,6 +181,85 @@ describe('cache', () => {
 	});
 });
 
+describe('stale-while-revalidate', () => {
+	function swr(replies: Parameters<typeof fakeFetch>[0]) {
+		const f = fakeFetch(replies);
+		const clock = fakeClock();
+		const transport = createTransport({ baseUrl: BASE, token: TOKEN, readOnly: true, fetch: f.fetch, ...clock });
+		const errors: string[] = [];
+		const client = createMonicaClient(transport, { now: clock.now, cacheTtlMs: 1000, staleMs: 60_000, onRevalidateError: (p) => errors.push(p) });
+		const tick = (ms: number) => clock.sleep(ms);
+		return { ...f, clock, client, tick, errors };
+	}
+	const named = (name: string) => ({ data: { ...me.data, name } });
+
+	it('serves the cached answer at once after it expires, re-checks in the background, then serves the new one', async () => {
+		const { client, calls, tick, clock } = swr([{ body: named('Old') }, { body: named('New') }]);
+		const start = clock.now();
+		expect((await client.get('/api/me', single(user))).data.name).toBe('Old');
+		await tick(5000);
+		expect((await client.get('/api/me', single(user))).data.name).toBe('Old'); // stale, instantly
+		expect((await client.get('/api/me', single(user))).data.name).toBe('Old'); // only one re-check
+		const s = await client.settle(start);
+		expect(s).toMatchObject({ busy: true, changed: true });
+		expect(calls).toHaveLength(2);
+		expect((await client.get('/api/me', single(user))).data.name).toBe('New');
+		expect(calls).toHaveLength(2);
+		expect(await client.settle(s.now)).toMatchObject({ busy: false, changed: false });
+	});
+
+	it('an unchanged re-check does not count as a change', async () => {
+		const { client, tick, clock } = swr(() => ({ body: me }));
+		await client.get('/api/me', single(user));
+		await tick(5000);
+		const since = clock.now();
+		await client.get('/api/me', single(user));
+		expect(await client.settle(since)).toMatchObject({ busy: true, changed: false });
+	});
+
+	it('a failed re-check keeps the cached answer and tries again next time', async () => {
+		const { client, calls, tick, errors } = swr([{ body: named('Old') }, { status: 404 }, { body: named('New') }]);
+		await client.get('/api/me', single(user));
+		await tick(5000);
+		await client.get('/api/me', single(user));
+		await client.settle(0);
+		expect(errors).toEqual(['/api/me']);
+		expect((await client.get('/api/me', single(user))).data.name).toBe('Old');
+		await client.settle(0);
+		expect((await client.get('/api/me', single(user))).data.name).toBe('New');
+		expect(calls).toHaveLength(3);
+	});
+
+	it('past staleMs the answer is fetched again before use', async () => {
+		const { client, calls, tick } = swr([{ body: named('Old') }, { body: named('New') }]);
+		await client.get('/api/me', single(user));
+		await tick(61_000);
+		expect((await client.get('/api/me', single(user))).data.name).toBe('New');
+		expect(calls).toHaveLength(2);
+	});
+
+	it('invalidate() (after a write) means the next read waits for Monica; late re-checks are dropped', async () => {
+		let release: () => void = () => {};
+		const gate = new Promise<void>((r) => (release = r));
+		let n = 0;
+		const f = fakeFetch(() => ({ body: named(`v${++n}`) }));
+		const clock = fakeClock();
+		const slow: typeof fetch = async (...a) => {
+			if (n === 1) await gate; // hold the background re-check
+			return f.fetch(...a);
+		};
+		const transport = createTransport({ baseUrl: BASE, token: TOKEN, readOnly: true, fetch: slow, ...clock });
+		const client = createMonicaClient(transport, { now: clock.now, cacheTtlMs: 1000, staleMs: 60_000 });
+		expect((await client.get('/api/me', single(user))).data.name).toBe('v1');
+		await clock.sleep(5000);
+		await client.get('/api/me', single(user)); // starts the held re-check
+		client.invalidate();
+		release();
+		await client.settle(0);
+		expect((await client.get('/api/me', single(user))).data.name).toBe('v3');
+	});
+});
+
 describe('retries', () => {
 	it('retries GET on network errors and 503', async () => {
 		const { client, calls } = setup([new Error('ECONNRESET'), { status: 503 }, { body: me }]);

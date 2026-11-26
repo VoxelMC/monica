@@ -2,6 +2,7 @@
 	import '../app.css';
 	import { faviconHref } from '#lib/logo.js';
 	import Logo from '#lib/components/Logo.svelte';
+	import CacheSync from '#lib/components/CacheSync.svelte';
 	import { navigating, page } from '$app/state';
 	import { themeCss } from '#lib/themes.js';
 	import type { LayoutProps } from './$types';
@@ -46,6 +47,8 @@
 		<div class="h-full w-1/3 animate-[orbit-load_1s_ease-in-out_infinite] bg-accent-solid"></div>
 	</div>
 {/if}
+
+<CacheSync serverNow={data.serverNow} />
 
 <div class="lg:flex">
 	<!-- Desktop sidebar -->
