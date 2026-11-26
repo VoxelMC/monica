@@ -42,6 +42,17 @@ export async function listContacts(client: MonicaClient): Promise<ContactCard[]>
 	return all.filter((c) => !c.is_partial && c.is_active).map(toCard);
 }
 
+/** The contact's photo with this file name (a photoKey), or null if Monica has none by that name. */
+export async function getPhotoByKey(
+	client: MonicaClient,
+	contactId: number,
+	key: string
+): Promise<{ mime: string; bytes: Uint8Array } | null> {
+	const photos = await client.getAll(`/api/contacts/${contactId}/photos`, photo);
+	const p = photos.find((x) => x.new_filename.split('/').pop() === key);
+	return p ? decodeImage(p.dataUrl) : null;
+}
+
 /** The contact's avatar photo as bytes, or null if it has none. */
 export async function getAvatar(
 	client: MonicaClient,
@@ -56,8 +67,11 @@ export async function getAvatar(
 	// The avatar URL ends with the photo's file name; fall back to the first photo.
 	const file = (c.information.avatar.url ?? '').split('?')[0].split('/').pop();
 	const p = photos.find((x) => x.new_filename.endsWith(file ?? '\0')) ?? photos[0];
-	if (!p) return null;
-	const m = /^data:([\w/+.-]+);base64,(.*)$/s.exec(p.dataUrl);
+	return p ? decodeImage(p.dataUrl) : null;
+}
+
+function decodeImage(dataUrl: string): { mime: string; bytes: Uint8Array } | null {
+	const m = /^data:([\w/+.-]+);base64,(.*)$/s.exec(dataUrl);
 	if (!m || !m[1].startsWith('image/')) return null;
 	return { mime: m[1], bytes: Uint8Array.from(Buffer.from(m[2], 'base64')) };
 }

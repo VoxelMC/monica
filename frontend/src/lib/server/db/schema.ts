@@ -1,4 +1,4 @@
-import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { blob, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 // Extension DB. Slice 0 only needs the audit log; the slice 5 tables come later.
 
@@ -91,3 +91,14 @@ export const souvenirList = sqliteTable(
 	},
 	(t) => [primaryKey({ columns: [t.tripId, t.monicaContactId] })]
 );
+
+// Avatar thumbnails (2026-11-26): a small copy of each contact's Monica photo, so
+// lists don't download every full photo from Monica again. Only a cache: Monica
+// keeps the photo; a new photo (new photo_key) replaces the row.
+export const avatarThumbs = sqliteTable('avatar_thumbs', {
+	monicaContactId: integer('monica_contact_id').primaryKey(),
+	photoKey: text('photo_key').notNull(),
+	mime: text('mime').notNull(),
+	bytes: blob('bytes', { mode: 'buffer' }).notNull(),
+	createdAt: text('created_at').notNull()
+});

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMonicaClient, createTransport } from './client';
-import { getAvatar, listContacts, toCard } from './contacts';
+import { getAvatar, getPhotoByKey, listContacts, toCard } from './contacts';
 import { contactListItem } from './schemas';
 import { fakeClock, fakeFetch, page } from './test-helpers';
 
@@ -86,5 +86,15 @@ describe('getAvatar', () => {
 		);
 		expect(await getAvatar(c, 6)).toBeNull();
 		expect(await getAvatar(c, 5)).toBeNull();
+	});
+});
+
+describe('getPhotoByKey', () => {
+	it('returns only the photo with exactly that file name', async () => {
+		const { client: c, calls } = client(() => ({ body: page([{ id: 1, new_filename: 'photos/old.jpg', mime_type: 'image/jpeg', dataUrl: 'data:image/jpeg;base64,AAAA' }, { id: 2, new_filename: 'photos/new.jpg', mime_type: 'image/jpeg', dataUrl: 'data:image/jpeg;base64,/9j/' }], 1, 1) }));
+		expect([...(await getPhotoByKey(c, 5, 'new.jpg'))!.bytes]).toEqual([0xff, 0xd8, 0xff]);
+		expect(await getPhotoByKey(c, 5, 'missing.jpg')).toBeNull();
+		expect(await getPhotoByKey(c, 5, 'ew.jpg')).toBeNull();
+		expect(calls.every((x) => new URL(x.url).pathname === '/api/contacts/5/photos')).toBe(true);
 	});
 });

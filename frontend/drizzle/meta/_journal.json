@@ -43,6 +43,13 @@
       "when": 1795553680789,
       "tag": "0005_calm_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795692471819,
+      "tag": "0006_adorable_daimon_hellstrom",
+      "breakpoints": true
     }
   ]
 }

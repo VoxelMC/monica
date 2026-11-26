@@ -333,6 +333,12 @@ Writes, in this order, each with its own guard test and owner approval of real s
 - On startup orbit loads the contact list, tasks, tags and diary in the background. The cache is in memory: up to 2000 answers, lost on restart.
 - `/fresh` sends nothing to Monica itself and is not a proxy.
 
+**Avatar thumbnails (requested 2026-11-26; branch orbit-avatar-thumbs, no Monica writes)**
+
+- `/avatars/{id}?v=<photo file name>` serves a 240 px square WebP (sharp; EXIF rotation applied) kept in the extension DB table `avatar_thumbs` (migration 0006, one row per contact, replaced when the photo key changes). Monica is asked once per photo: `GET /api/contacts/{id}/photos`, taking only the photo whose file name equals `v`, so a stale list can never store an old photo under a new key. If the image cannot be shrunk, the original is served and nothing is stored.
+- Versioned avatar URLs are sent with `cache-control: private, max-age=31536000, immutable`. `/avatars/{id}` without `v` still serves the full photo (10-minute memory cache).
+- The table is only a cache (backed up with orbit.db, a few KB per person); deleting its rows is safe.
+
 **Notes, refresh, tags, phones and emails (requested 2026-11-24; built and run on staging, awaiting approval)**
 
 - Add note: "+ Add note" in a contact's Notes section; `note.create` (already approved).
