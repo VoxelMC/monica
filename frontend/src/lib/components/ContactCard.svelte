@@ -2,6 +2,7 @@
 	import { fullDate, relativeDate, type ContactCard } from '#lib/contacts.js';
 	import Avatar from './Avatar.svelte';
 	import Tag from './Tag.svelte';
+	import { useTagHue } from '#lib/tag-colours.js';
 
 	interface Props {
 		contact: ContactCard;
@@ -13,6 +14,7 @@
 		ontoggle?: (id: number, shiftKey: boolean) => void;
 	}
 	let { contact: c, view = 'cards', selecting = false, selected = false, ontoggle }: Props = $props();
+	const tagHue = useTagHue();
 
 	const last = $derived(c.lastContacted ? `Last contact ${relativeDate(c.lastContacted)}` : 'No catch-ups logged');
 	const base = $derived(
@@ -69,9 +71,17 @@
 		{#if selecting}<span class="absolute top-2.5 left-2.5 z-[1] rounded-[var(--radius-chip)] bg-surface">{@render check()}</span>{/if}
 		<Avatar id={c.id} name={c.name} initials={c.initials} color={c.color} hasPhoto={c.hasPhoto} photoKey={c.photoKey} size="aspect-square w-full h-auto" text="text-3xl" />
 		<span class="min-w-0 px-0.5">
-			<span class="block truncate text-sm font-semibold" data-name>{c.name}</span>
+			<!-- Tags as coloured dots beside the name (name on hover / long press via title) -->
+			<span class="flex items-center gap-1.5">
+				<span class="min-w-0 flex-1 truncate text-sm font-semibold" data-name>{c.name}</span>
+				{#if c.tags.length}
+					<span class="flex shrink-0 items-center gap-1" role="list" aria-label="Tags: {c.tags.join(', ')}" title={c.tags.join(', ')}>
+						{#each c.tags.slice(0, 5) as t (t)}<span role="listitem" class="size-2 rounded-full" style:background-color="var(--hue-{tagHue(t)})" title={t}></span>{/each}
+						{#if c.tags.length > 5}<span class="text-[0.625rem] leading-none text-muted">+{c.tags.length - 5}</span>{/if}
+					</span>
+				{/if}
+			</span>
 			{#if c.nickname}<span class="block truncate text-xs text-muted italic">{c.nickname}</span>{/if}
-			<span class="mt-1 block">{@render tags(2)}</span>
 		</span>
 	{:else if view === 'cards'}
 		{@render check()}
