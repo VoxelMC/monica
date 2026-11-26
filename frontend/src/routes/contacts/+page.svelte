@@ -38,6 +38,15 @@
 	const everyTag = $derived(allTags(data.contacts));
 	// Active chips first, so a filter set from a link (e.g. the Tags page) is visible without scrolling.
 	const chipOrder = $derived([...tags.filter((t) => everyTag.includes(t)), ...everyTag.filter((t) => !tags.includes(t))]);
+	// Same name more than once (the Duplicates page checks properly and plans merges)
+	const dupNames = $derived.by(() => {
+		const seen = new Map<string, number>();
+		for (const c of data.contacts) {
+			const k = [c.firstName, c.lastName].map((p) => (p ?? '').trim().toLocaleLowerCase()).filter(Boolean).join(' ');
+			if (k) seen.set(k, (seen.get(k) ?? 0) + 1);
+		}
+		return [...seen.values()].filter((n) => n > 1).length;
+	});
 	const shown = $derived(sortContacts(searchContacts(data.contacts, query, tagFilter), sort));
 	const filtering = $derived(!!query || tags.length > 0 || untagged);
 
@@ -300,6 +309,12 @@
 				</div>
 			{/if}
 		</header>
+		{#if dupNames}
+			<a href="/duplicates" class="mt-3 flex items-center justify-between gap-2 rounded-[var(--radius-card)] border border-line bg-surface px-3 py-2 text-sm hover:bg-surface-2" data-testid="dup-banner">
+				<span>{dupNames} {dupNames === 1 ? 'name appears' : 'names appear'} more than once</span>
+				<span class="font-medium text-accent">Review duplicates →</span>
+			</a>
+		{/if}
 
 		<div class="relative pr-6 lg:pr-8">
 			{#if shown.length}

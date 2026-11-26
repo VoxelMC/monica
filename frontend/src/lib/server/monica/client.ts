@@ -14,7 +14,7 @@ import {
 	MonicaValidationError,
 	WriteRefusedError
 } from './errors';
-import { DELETABLE_PATH, DELETE_CAPABILITY } from './delete-capability';
+import { DELETABLE_PATH, DELETE_CAPABILITY, MERGE_DELETE_CAPABILITY, MERGED_CONTACT_PATH } from './delete-capability';
 import { paginated, type paginationMeta } from './schemas';
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -113,8 +113,11 @@ export function createTransport(opts: TransportOptions): Transport {
 	async function request(method: Method, path: string, ro: { query?: Query; body?: unknown; deleteCapability?: symbol } = {}) {
 		// Defence in depth: these are also checked in guards.ts.
 		if ((method as string).toUpperCase() === 'DELETE') {
-			// Only from the guards, and only hangouts, notes and journal entries.
-			if (method !== 'DELETE' || ro.deleteCapability !== DELETE_CAPABILITY || !DELETABLE_PATH.test(path)) {
+			// Only from the guards: hangouts, notes and journal entries; or a contact as the
+			// last step of a confirmed merge (its own token, contact paths only).
+			const plain = ro.deleteCapability === DELETE_CAPABILITY && DELETABLE_PATH.test(path);
+			const merge = ro.deleteCapability === MERGE_DELETE_CAPABILITY && MERGED_CONTACT_PATH.test(path);
+			if (method !== 'DELETE' || !(plain || merge)) {
 				throw new WriteRefusedError('delete-forbidden', `orbit does not delete ${path} (only hangouts, notes and journal entries, through the guards)`);
 			}
 		}

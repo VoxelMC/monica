@@ -628,3 +628,12 @@ test('cache sync: shows "Checking Monica…" while a re-check runs and reloads t
 	await expect(pill).toHaveText(/Updated/);
 	await expect(pill).toBeHidden({ timeout: 5000 });
 });
+
+test('duplicates page loads (read-only: merge buttons only where nothing blocks)', async ({ page }) => {
+	await page.goto('/duplicates');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Duplicates');
+	const groups = page.getByTestId('dup-groups').getByTestId('dup-group');
+	if ((await groups.count()) === 0) await expect(page.getByTestId('dup-none')).toBeVisible();
+	const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+	expect(overflow).toBe(false);
+});

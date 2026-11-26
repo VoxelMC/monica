@@ -1,7 +1,9 @@
 // Every write to Monica goes through this module. Rules (SPEC "Write guards"):
 //  1. DELETE only for hangouts, notes and journal entries (owner decision 2026-11-23):
 //     allowlisted path, full record saved to the audit log first, conflict check.
-//     The transport refuses every other DELETE, and contacts can never be deleted.
+//     The transport refuses every other DELETE. A contact only through
+//     removeMergedDuplicate: the last step of a confirmed merge, refused unless
+//     nothing is left on the copy (owner decision 2026-11-26).
 //  2. Read-only switch: ORBIT_READ_ONLY=true refuses every write (it wins over dry run).
 //  3. Allowlist: only method + path patterns listed in WRITE_ALLOWLIST are allowed,
 //     and only the fields each rule lists may be changed.
@@ -16,7 +18,8 @@ import type { AuditLog } from '../audit';
 import { assertApiPath, type Transport } from './client';
 import { basePayloadFromContact, contactHasBirthday } from '../../birthday-write';
 import { checkPhotoDataUrl } from '../../photo';
-import { DELETE_CAPABILITY } from './delete-capability';
+import { DELETE_CAPABILITY, MERGE_DELETE_CAPABILITY } from './delete-capability';
+import { mergeLeftovers, type CopyLists } from '../../duplicates';
 import { ConflictError, WriteRefusedError } from './errors';
 
 export { DELETE_CAPABILITY };
@@ -243,6 +246,14 @@ export interface Guards {
 	update(key: string, id: number, changes: Json, expectedUpdatedAt: string): Promise<WriteResult>;
 	/** Remove one allowlisted record; the full record is saved to the audit log first. */
 	remove(key: string, id: number, expectedUpdatedAt: string): Promise<WriteResult>;
+	/**
+	 * Last step of a merge the owner confirmed (owner decision 2026-11-26): delete the
+	 * copy `copyId` after its data was moved to `keepId`. Re-reads both and every
+	 * list on the copy, and refuses unless nothing would be lost (mergeLeftovers).
+	 * The copy's full record and lists go to the audit log first. Not on the
+	 * allowlist: no other contact DELETE is possible.
+	 */
+	removeMergedDuplicate(copyId: number, keepId: number, expectedUpdatedAt: string, note: string): Promise<WriteResult>;
 }
 
 /** Check a method and path against the read-only switch and allowlist. Throws if refused. */
@@ -406,6 +417,65 @@ export function createGuards(opts: GuardOptions): Guards {
 			let response: unknown;
 			try {
 				response = await transport.request('DELETE', path, { deleteCapability: DELETE_CAPABILITY });
+			} catch (err) {
+				audit.finish(auditId, `error:${(err as Error).message}`);
+				throw err;
+			}
+			audit.finish(auditId, 'ok', response);
+			opts.onWrite?.();
+			return { auditId, dryRun: false, payload: {}, response };
+		},
+
+		async removeMergedDuplicate(copyId, keepId, expectedUpdatedAt, note) {
+			const path = `/api/contacts/${copyId}`;
+			guarded('DELETE', path, Number.isInteger(copyId) ? copyId : null, () => {
+				if (opts.readOnly) throw new WriteRefusedError('read-only', `orbit is read-only (ORBIT_READ_ONLY=true): DELETE ${path} refused`);
+				for (const id of [copyId, keepId]) if (!Number.isInteger(id) || id <= 0) throw new WriteRefusedError('bad-path', `Invalid id ${id}`);
+				if (copyId === keepId) throw new WriteRefusedError('precondition', 'cannot merge a person into themselves');
+			});
+			const get = async (p: string) => unwrap(await transport.request('GET', p, { query: { with: 'contactfields' } }));
+			const list = async (p: string) => {
+				const all: Json[] = [];
+				for (let page = 1, last = 1; page <= last && page <= 50; page++) {
+					const res = (await transport.request('GET', p, { query: { page, limit: 100 } })) as { data?: Json[]; meta?: { last_page?: number } };
+					all.push(...(res.data ?? []));
+					last = res.meta?.last_page ?? 1;
+				}
+				return all;
+			};
+			const copy = await get(path);
+			if (copy.updated_at !== expectedUpdatedAt) {
+				audit.start({ method: 'DELETE', endpoint: path, monicaId: copyId, before: copy, dryRun: opts.dryRun, result: 'conflict' });
+				throw new ConflictError(path, expectedUpdatedAt, copy.updated_at);
+			}
+			const keep = await get(`/api/contacts/${keepId}`);
+			const lists: CopyLists = {
+				pets: await list(`${path}/pets`),
+				conversations: await list(`${path}/conversations`),
+				documents: await list(`${path}/documents`),
+				photos: await list(`${path}/photos`),
+				reminders: await list(`${path}/reminders`)
+			};
+			// Photos are saved without their image data (that is in Monica's storage, not here)
+			const snapshot = {
+				mergedInto: { id: keep.id, name: keep.complete_name, updated_at: keep.updated_at },
+				note,
+				contact: copy,
+				lists: { ...lists, photos: lists.photos.map(({ dataUrl: _d, ...p }) => p) }
+			};
+			const left = mergeLeftovers(keep, copy, lists);
+			if (left.length) {
+				audit.start({ method: 'DELETE', endpoint: path, monicaId: copyId, before: snapshot, dryRun: opts.dryRun, result: 'refused:precondition' });
+				throw new WriteRefusedError('precondition', `not deleted, the copy still has: ${left.join('; ')}`);
+			}
+			if (opts.dryRun) {
+				const auditId = audit.start({ method: 'DELETE', endpoint: path, monicaId: copyId, before: snapshot, dryRun: true, result: 'dry-run' });
+				return { auditId, dryRun: true, payload: {}, response: null };
+			}
+			const auditId = audit.start({ method: 'DELETE', endpoint: path, monicaId: copyId, before: snapshot, dryRun: false, result: 'pending' });
+			let response: unknown;
+			try {
+				response = await transport.request('DELETE', path, { deleteCapability: MERGE_DELETE_CAPABILITY });
 			} catch (err) {
 				audit.finish(auditId, `error:${(err as Error).message}`);
 				throw err;
